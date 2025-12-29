@@ -1,0 +1,269 @@
+import { useState, useEffect } from 'react';
+import { format, parseISO, addDays, startOfWeek, endOfWeek } from 'date-fns';
+import { ptBR } from 'date-fns/locale';
+import { Calendar as CalendarIcon, Clock, CheckCircle, XCircle, PlayCircle, User as UserIcon } from 'lucide-react';
+import { Card } from '../ui/card';
+import { Button } from '../ui/button';
+import { supabase } from '../../lib/supabase';
+import { useAuth } from '../../hooks/useAuth';
+import { toast } from 'sonner';
+
+// Componente de Seleção de Período
+function RangeCalendar({ 
+  startDate, 
+  endDate, 
+  onStartChange, 
+  onEndChange,
+  onQuickSelect 
+}: { 
+  startDate: string, 
+  endDate: string, 
+  onStartChange: (d: string) => void, 
+  onEndChange: (d: string) => void,
+  onQuickSelect: (type: 'today' | 'week') => void
+}) {
+  return (
+    <div className="p-4 bg-white rounded-xl border shadow-sm space-y-4">
+      <div className="flex gap-2 mb-2">
+        <Button variant="outline" size="sm" className="flex-1" onClick={() => onQuickSelect('today')}>
+          Hoje
+        </Button>
+        <Button variant="outline" size="sm" className="flex-1" onClick={() => onQuickSelect('week')}>
+          Semana
+        </Button>
+      </div>
+      
+      <div className="grid grid-cols-2 gap-2">
+        <div>
+          <label className="block text-xs font-medium text-muted-foreground mb-1">De</label>
+          <input 
+            type="date" 
+            value={startDate}
+            onChange={(e) => onStartChange(e.target.value)}
+            className="w-full p-2 border rounded-md text-center text-sm outline-none focus:ring-2 ring-primary/20"
+          />
+        </div>
+        <div>
+          <label className="block text-xs font-medium text-muted-foreground mb-1">Até</label>
+          <input 
+            type="date" 
+            value={endDate}
+            onChange={(e) => onEndChange(e.target.value)}
+            className="w-full p-2 border rounded-md text-center text-sm outline-none focus:ring-2 ring-primary/20"
+          />
+        </div>
+      </div>
+    </div>
+  );
+}
+
+export default function CalendarView() {
+  const { user } = useAuth();
+  
+  const [startDate, setStartDate] = useState(format(new Date(), 'yyyy-MM-dd'));
+  const [endDate, setEndDate] = useState(format(addDays(new Date(), 6), 'yyyy-MM-dd')); 
+  
+  const [appointments, setAppointments] = useState<any[]>([]);
+  const [loading, setLoading] = useState(false);
+
+  const fetchAppointments = async () => {
+    if (!user) return;
+    setLoading(true);
+    
+    const endDateTime = `${endDate}T23:59:59`;
+
+    const { data, error } = await supabase
+      .from('appointments')
+      .select(`
+        id,
+        appointment_date,
+        appointment_time,
+        status,
+        notes,
+        clients (name, phone),
+        services (name, price, duration_minutes),
+        professionals (name)
+      `)
+      .eq('user_id', user.id)
+      .gte('appointment_date', startDate) 
+      .lte('appointment_date', endDate)   
+      .order('appointment_date', { ascending: true })
+      .order('appointment_time', { ascending: true });
+
+    if (error) {
+      console.error(error);
+      toast.error('Erro ao carregar agenda');
+    } else {
+      setAppointments(data || []);
+    }
+    setLoading(false);
+  };
+
+  useEffect(() => {
+    fetchAppointments();
+  }, [startDate, endDate, user]);
+
+  const handleQuickSelect = (type: 'today' | 'week') => {
+    const today = new Date();
+    if (type === 'today') {
+      const formatted = format(today, 'yyyy-MM-dd');
+      setStartDate(formatted);
+      setEndDate(formatted);
+    } else {
+      setStartDate(format(startOfWeek(today), 'yyyy-MM-dd'));
+      setEndDate(format(endOfWeek(today), 'yyyy-MM-dd'));
+    }
+  };
+
+  const updateStatus = async (id: string, newStatus: string) => {
+    const { error } = await supabase
+      .from('appointments')
+      .update({ status: newStatus })
+      .eq('id', id);
+
+    if (error) {
+      toast.error('Erro ao atualizar status');
+    } else {
+      toast.success('Status atualizado com sucesso!');
+      fetchAppointments(); 
+    }
+  };
+
+  return (
+    <div className="grid md:grid-cols-[300px_1fr] gap-6 animate-fade-in">
+      
+      <div className="space-y-4">
+        <RangeCalendar 
+          startDate={startDate} 
+          endDate={endDate} 
+          onStartChange={setStartDate}
+          onEndChange={setEndDate}
+          onQuickSelect={handleQuickSelect}
+        />
+        
+        <Card className="p-4 bg-primary/5 border-primary/20">
+          <h3 className="font-semibold text-primary mb-2">Resumo do Período</h3>
+          <div className="space-y-2 text-sm">
+            <div className="flex justify-between">
+              <span>Total:</span>
+              <span className="font-bold">{appointments.length}</span>
+            </div>
+            <div className="flex justify-between">
+              <span>Pendentes:</span>
+              <span className="font-bold text-yellow-600">
+                {appointments.filter(a => a.status === 'pending').length}
+              </span>
+            </div>
+            <div className="flex justify-between">
+              <span>Confirmados:</span>
+              <span className="font-bold text-green-600">
+                {appointments.filter(a => a.status === 'confirmed').length}
+              </span>
+            </div>
+          </div>
+        </Card>
+      </div>
+
+      <div className="space-y-4">
+        <div className="flex items-center justify-between">
+          <h2 className="text-2xl font-display font-bold">
+            Agenda
+          </h2>
+          <Button variant="outline" size="sm" onClick={fetchAppointments} disabled={loading}>
+            {loading ? 'Carregando...' : 'Atualizar'}
+          </Button>
+        </div>
+
+        {appointments.length === 0 ? (
+          <div className="flex flex-col items-center justify-center py-12 text-muted-foreground bg-white/50 rounded-xl border border-dashed">
+            <CalendarIcon className="w-12 h-12 mb-4 opacity-50" />
+            <p>Nenhum agendamento encontrado neste período.</p>
+          </div>
+        ) : (
+          <div className="space-y-3">
+            {appointments.map((app) => (
+              <Card key={app.id} className="p-4 flex flex-col md:flex-row gap-4 justify-between items-start md:items-center hover:shadow-md transition-all">
+                
+                <div className="flex gap-4">
+                  <div className="flex flex-col items-center justify-center px-3 py-2 bg-muted rounded-lg min-w-[90px] text-center">
+                    <span className="text-xs font-bold uppercase text-muted-foreground">
+                      {format(parseISO(app.appointment_date), 'dd MMM', { locale: ptBR })}
+                    </span>
+                    <span className="text-xl font-bold text-foreground">
+                      {app.appointment_time.slice(0, 5)}
+                    </span>
+                    <span className={`text-[10px] uppercase font-bold px-2 py-0.5 rounded-full mt-1
+                      ${app.status === 'pending' ? 'bg-yellow-100 text-yellow-700' : ''}
+                      ${app.status === 'confirmed' ? 'bg-green-100 text-green-700' : ''}
+                      ${app.status === 'completed' ? 'bg-blue-100 text-blue-700' : ''}
+                      ${app.status === 'cancelled' ? 'bg-red-100 text-red-700' : ''}
+                      ${app.status === 'no_show' ? 'bg-red-100 text-red-700' : ''}
+                    `}>
+                      {app.status === 'no_show' ? 'Faltou' : app.status}
+                    </span>
+                  </div>
+
+                  <div>
+                    <h3 className="font-bold text-lg">{app.clients?.name || 'Cliente deletado'}</h3>
+                    <div className="flex items-center gap-2 text-sm text-muted-foreground mt-1">
+                      <span className="flex items-center gap-1">
+                        <Clock className="w-3 h-3" /> {app.services?.name}
+                      </span>
+                      <span>•</span>
+                      
+                      {/* NOME DO PROFISSIONAL */}
+                      <span className="flex items-center gap-1 text-primary font-medium bg-primary/10 px-1.5 py-0.5 rounded text-xs">
+                         <UserIcon className="w-3 h-3" />
+                         {app.professionals?.name || 'Sem Profissional'}
+                      </span>
+                      
+                      <span>•</span>
+                      <span>{app.services?.duration_minutes} min</span>
+                      <span>•</span>
+                      <span className="text-foreground font-medium">
+                        {app.services?.price ? `R$ ${app.services.price}` : '-'}
+                      </span>
+                    </div>
+                  </div>
+                </div>
+
+                <div className="flex items-center gap-2 w-full md:w-auto border-t md:border-t-0 pt-4 md:pt-0 mt-2 md:mt-0">
+                  {app.status === 'pending' && (
+                    <Button 
+                      size="sm" 
+                      className="bg-green-600 hover:bg-green-700 text-white flex-1 md:flex-none"
+                      onClick={() => updateStatus(app.id, 'confirmed')}
+                    >
+                      <CheckCircle className="w-4 h-4 mr-2" /> Confirmar
+                    </Button>
+                  )}
+
+                  {app.status === 'confirmed' && (
+                    <Button 
+                      size="sm" 
+                      className="bg-blue-600 hover:bg-blue-700 text-white flex-1 md:flex-none"
+                      onClick={() => updateStatus(app.id, 'completed')}
+                    >
+                      <PlayCircle className="w-4 h-4 mr-2" /> Finalizar
+                    </Button>
+                  )}
+
+                  {['pending', 'confirmed'].includes(app.status) && (
+                    <Button 
+                      size="sm" 
+                      variant="outline"
+                      className="text-red-600 hover:bg-red-50 border-red-200 flex-1 md:flex-none"
+                      onClick={() => updateStatus(app.id, 'cancelled')}
+                    >
+                      <XCircle className="w-4 h-4 mr-2" /> Cancelar
+                    </Button>
+                  )}
+                </div>
+              </Card>
+            ))}
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}

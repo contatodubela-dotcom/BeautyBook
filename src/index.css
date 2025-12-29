@@ -1,0 +1,133 @@
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap');
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  :root {
+    /* --- PALETA COSTA & COSTA TECH (Dark Premium) --- */
+    
+    /* Fundo Principal (Azul Profundo) */
+    --background: 212 60% 10%; /* #0A1929 */
+    --foreground: 0 0% 100%;   /* Branco */
+
+    /* Cartões e Elementos (Azul Médio) */
+    --card: 218 57% 16%;       /* #112240 */
+    --card-foreground: 0 0% 100%;
+
+    /* Popovers / Modais */
+    --popover: 218 57% 16%;
+    --popover-foreground: 0 0% 100%;
+
+    /* Cor Principal (O Dourado Premium) */
+    --primary: 33 90% 65%;     /* #F6AD55 (Dourado/Ambar) */
+    --primary-foreground: 212 60% 10%; /* Texto escuro no botão dourado */
+
+    /* Cor Secundária (Cinza Azulado para detalhes) */
+    --secondary: 217 33% 17%;
+    --secondary-foreground: 210 40% 98%;
+
+    /* Elementos Silenciosos (Textos de apoio) */
+    --muted: 217 33% 20%;
+    --muted-foreground: 215 20% 65%; /* #A0AEC0 */
+
+    /* Detalhes e Bordas */
+    --accent: 33 90% 65%;
+    --accent-foreground: 212 60% 10%;
+
+    --destructive: 0 62% 30%;
+    --destructive-foreground: 0 0% 98%;
+
+    --border: 217 33% 25%; /* #2D3748 */
+    --input: 217 33% 25%;
+    --ring: 33 90% 65%;
+
+    --radius: 0.75rem;
+  }
+}
+
+@layer base {
+  * {
+    @apply border-border;
+  }
+  body {
+    @apply bg-background text-foreground font-sans antialiased;
+    /* Removemos a fonte serifada para ficar mais "Tech Startup" */
+  }
+  
+  /* Títulos Fortes */
+  h1, h2, h3, h4, h5, h6 {
+    @apply font-sans tracking-tight;
+    font-weight: 700;
+  }
+
+  /* Scrollbar moderna */
+  ::-webkit-scrollbar {
+    width: 8px;
+    height: 8px;
+  }
+  ::-webkit-scrollbar-track {
+    background: #0A1929;
+  }
+  ::-webkit-scrollbar-thumb {
+    background: #2D3748;
+    border-radius: 4px;
+  }
+  ::-webkit-scrollbar-thumb:hover {
+    background: #F6AD55;
+  }
+}
+
+@layer utilities {
+  .font-sans {
+    font-family: 'Inter', sans-serif;
+  }
+  
+  /* Gradiente Dourado para botões especiais */
+  .gradient-primary {
+    @apply bg-gradient-to-r from-orange-400 to-amber-500 hover:from-orange-500 hover:to-amber-600 text-gray-900 border-none;
+  }
+  
+  /* Inputs Minimalistas (Estilo Notion/Linear) */
+  .input-minimal {
+    @apply bg-transparent border-0 border-b-2 border-gray-700 rounded-none px-0 py-3 focus:ring-0 focus:border-primary transition-all placeholder:text-gray-500;
+  }
+
+  .glass-effect {
+    @apply bg-[#112240]/80 backdrop-blur-lg border border-white/10;
+  }
+  /* --- src/index.css (Adicione isso no final do arquivo) --- */
+
+/* Forçar estilo minimalista nos inputs das páginas de Auth */
+input[type="email"],
+input[type="password"],
+input[type="text"] {
+  background-color: transparent !important;
+  color: white !important; /* Força o texto branco */
+}
+
+/* Cor do texto de placeholder (o texto "seu@email.com") */
+input::placeholder {
+  color: #64748b !important; /* Cinza médio */
+}
+
+/* Ajusta as bordas se estiverem brancas demais */
+input {
+  border-color: #334155 !important;
+}
+input:focus {
+  border-color: #F6AD55 !important; /* Dourado ao clicar */
+  outline: none !important;
+}
+
+/* Correção para textos escuros em fundos escuros */
+.text-gray-900 {
+  color: #f1f5f9 !important; /* Transforma preto em branco quase puro */
+}
+/* Exceção: Textos dentro de botões primários (Dourados) devem ser pretos */
+.bg-primary .text-gray-900,
+button.bg-primary {
+  color: #1e293b !important; 
+}
+}
