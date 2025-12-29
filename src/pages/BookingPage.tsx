@@ -5,11 +5,18 @@ import { supabase } from '../lib/supabase';
 import { Card } from '../components/ui/card';
 import { Button } from '../components/ui/button';
 import { Input } from '../components/ui/input';
-import { Sparkles, Calendar, Clock, CheckCircle, ArrowLeft, User as UserIcon } from 'lucide-react';
+import { Sparkles, Calendar, Clock, CheckCircle, ArrowLeft, Star, User as UserIcon } from 'lucide-react';
 import { toast } from 'sonner';
 import { format, addDays, parseISO, isSameDay } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 import { Service, AvailabilitySetting } from '../types';
+
+// --- TIPAGEM ATUALIZADA DO PERFIL ---
+interface BusinessProfile {
+  user_id: string;
+  business_name: string;
+  banner_url: string | null; // Nova coluna
+}
 
 interface Professional {
   id: string;
@@ -27,36 +34,53 @@ const generateGoogleCalendarUrl = (serviceName: string, date: string, time: stri
 
 // --- WRAPPER PARA RESOLVER O LINK ---
 export default function BookingPage() {
-  const { userId: paramId, slug: paramSlug } = useParams<{ userId: string; slug: string }>();
+  const params = useParams();
+  const paramId = params.userId;
+  const paramSlug = params.slug;
 
   const [resolvedUserId, setResolvedUserId] = useState<string | null>(paramId || null);
-  const [loadingProfile, setLoadingProfile] = useState(!!paramSlug && !paramId);
+  // Estado agora guarda o perfil completo
+  const [profileData, setProfileData] = useState<BusinessProfile | null>(null);
+  const [loadingProfile, setLoadingProfile] = useState(true);
 
   useEffect(() => {
-    async function resolveSlug() {
-      if (paramId) {
-        setResolvedUserId(paramId);
-        return;
-      }
+    async function resolveProfile() {
+      setLoadingProfile(true);
+      let userIdToFetch = paramId;
 
-      if (paramSlug) {
-        setLoadingProfile(true);
-        const { data } = await supabase
+      // 1. Se veio por SLUG, descobre o ID
+      if (paramSlug && !paramId) {
+        const { data: slugData } = await supabase
           .from('business_profiles')
           .select('user_id')
           .eq('slug', paramSlug)
           .maybeSingle();
-
-        if (data) {
-          setResolvedUserId(data.user_id);
+        
+        if (slugData) {
+          userIdToFetch = slugData.user_id;
         } else {
-          console.error("Salão não encontrado.");
+           setLoadingProfile(false);
+           return; // Slug não encontrado
         }
-        setLoadingProfile(false);
       }
+
+      // 2. Com o ID na mão, busca os dados do perfil (Nome e Banner)
+      if (userIdToFetch) {
+          setResolvedUserId(userIdToFetch);
+          const { data: profile } = await supabase
+              .from('business_profiles')
+              .select('user_id, business_name, banner_url')
+              .eq('user_id', userIdToFetch)
+              .maybeSingle();
+          
+          if (profile) {
+              setProfileData(profile as BusinessProfile);
+          }
+      }
+      setLoadingProfile(false);
     }
 
-    resolveSlug();
+    resolveProfile();
   }, [paramId, paramSlug]);
 
   if (loadingProfile) {
@@ -77,11 +101,11 @@ export default function BookingPage() {
     );
   }
 
-  return <BookingContent userId={resolvedUserId} />;
+  return <BookingContent userId={resolvedUserId} profile={profileData} />;
 }
 
-// --- SEU CÓDIGO ORIGINAL (AGORA DENTRO DESTA FUNÇÃO) ---
-function BookingContent({ userId }: { userId: string }) {
+// --- CONTEÚDO DA PÁGINA ---
+function BookingContent({ userId, profile }: { userId: string, profile: BusinessProfile | null }) {
   const [step, setStep] = useState<'service' | 'datetime' | 'info' | 'success'>('service');
   const [selectedService, setSelectedService] = useState<Service | null>(null);
   const [selectedProfessional, setSelectedProfessional] = useState<Professional | null>(null);
@@ -89,6 +113,26 @@ function BookingContent({ userId }: { userId: string }) {
   const [selectedTime, setSelectedTime] = useState<string>('');
   const [clientName, setClientName] = useState('');
   const [clientPhone, setClientPhone] = useState('');
+
+  const businessName = profile?.business_name || 'Agendar Horário';
+  // URL da imagem ou um fallback se não tiver
+  const bannerUrl = profile?.banner_url;
+
+  // ... (MANTENHA TODAS AS QUERIES E MUTATIONS IGUAIS AO CÓDIGO ANTERIOR: services, professionals, availability, appointmentCounts, createAppointmentMutation, funções de data/hora) ...
+  // POR QUESTÃO DE ESPAÇO, NÃO VOU REPETIR A LÓGICA DE AGENDA AQUI, POIS ELA NÃO MUDA.
+  // VOCÊ DEVE MANTER O CÓDIGO DAS LINHAS 110 ATÉ 315 DO CÓDIGO ANTERIOR AQUI DENTRO.
+  
+  // PARA TESTAR RÁPIDO, SE NÃO QUISER COPIAR TUDO DE NOVO, USE O BLOCO ABAIXO NO LUGAR:
+  /*
+  // MOCKS PARA TESTE VISUAL (Remova isso e use suas queries reais depois)
+  const groupedServices = { 'Bronze': [{ id: '1', name: 'Bronzeamento Gelado', price: 120, duration_minutes: 60 }] };
+  const professionals = [{ id: 'p1', name: 'Glaucia', capacity: 1 }];
+  const getAvailableDates = () => ['2023-10-20', '2023-10-21'];
+  const getAvailableTimeSlots = () => ['09:00', '10:00'];
+  const createAppointmentMutation = { mutate: () => setStep('success'), isPending: false };
+  const handleDateTimeConfirm = () => setStep('info');
+  const handleSubmit = (e) => { e.preventDefault(); setStep('success'); }
+  */
 
   // 1. BUSCA SERVIÇOS
   const { data: services } = useQuery({
@@ -144,7 +188,7 @@ function BookingContent({ userId }: { userId: string }) {
     },
   });
 
-  // 4. BUSCA AGENDAMENTOS (Contagem de Vagas)
+  // 4. BUSCA AGENDAMENTOS (Contagem)
   const { data: appointmentCounts } = useQuery({
     queryKey: ['appointments-count', userId, selectedDate, selectedProfessional?.id],
     queryFn: async () => {
@@ -173,35 +217,18 @@ function BookingContent({ userId }: { userId: string }) {
   const createAppointmentMutation = useMutation({
     mutationFn: async () => {
       let clientId;
-      
-      const { data: existingClient } = await supabase
-        .from('clients')
-        .select('id')
-        .eq('phone', clientPhone)
-        .single();
+      const { data: existingClient } = await supabase.from('clients').select('id').eq('phone', clientPhone).single();
 
       if (existingClient) {
         clientId = existingClient.id;
       } else {
-        const { data: newClient, error: clientError } = await supabase
-          .from('clients')
-          .insert({ name: clientName, phone: clientPhone })
-          .select()
-          .single();
+        const { data: newClient, error: clientError } = await supabase.from('clients').insert({ name: clientName, phone: clientPhone }).select().single();
         if (clientError) throw clientError;
         clientId = newClient.id;
       }
 
-      const { data: blocked } = await supabase
-        .from('blocked_clients')
-        .select('id')
-        .eq('user_id', userId)
-        .eq('client_id', clientId)
-        .maybeSingle();
-
-      if (blocked) {
-        throw new Error('Entre em contato com o estabelecimento.');
-      }
+      const { data: blocked } = await supabase.from('blocked_clients').select('id').eq('user_id', userId).eq('client_id', clientId).maybeSingle();
+      if (blocked) throw new Error('Entre em contato com o estabelecimento.');
 
       const { error } = await supabase.from('appointments').insert({
         user_id: userId,
@@ -228,9 +255,7 @@ function BookingContent({ userId }: { userId: string }) {
       const date = addDays(new Date(), i);
       const dayOfWeek = date.getDay();
       const hasAvailability = availability?.some(a => a.day_of_week === dayOfWeek);
-      if (hasAvailability) {
-        dates.push(format(date, 'yyyy-MM-dd'));
-      }
+      if (hasAvailability) dates.push(format(date, 'yyyy-MM-dd'));
     }
     return dates;
   };
@@ -240,7 +265,6 @@ function BookingContent({ userId }: { userId: string }) {
     
     const dateObj = parseISO(selectedDate); 
     const dayOfWeek = dateObj.getDay(); 
-
     const dayAvailability = availability.find(a => a.day_of_week === dayOfWeek);
     if (!dayAvailability) return [];
 
@@ -256,26 +280,17 @@ function BookingContent({ userId }: { userId: string }) {
     let loopHour = startHour;
     let loopMinute = startMinute;
 
-    while (
-      loopHour < endHour ||
-      (loopHour === endHour && loopMinute < endMinute)
-    ) {
+    while (loopHour < endHour || (loopHour === endHour && loopMinute < endMinute)) {
       const timeString = `${String(loopHour).padStart(2, '0')}:${String(loopMinute).padStart(2, '0')}`;
-      
       let isPast = false;
       if (isToday) {
-        if (loopHour < currentHour || (loopHour === currentHour && loopMinute <= currentMinute)) {
-          isPast = true;
-        }
+        if (loopHour < currentHour || (loopHour === currentHour && loopMinute <= currentMinute)) isPast = true;
       }
-
       const currentCount = appointmentCounts?.[timeString] || 0;
       const capacity = selectedProfessional.capacity || 1;
       const isFull = currentCount >= capacity;
 
-      if (!isPast && !isFull) {
-        slots.push(timeString);
-      }
+      if (!isPast && !isFull) slots.push(timeString);
 
       loopMinute += 30;
       if (loopMinute >= 60) {
@@ -287,9 +302,7 @@ function BookingContent({ userId }: { userId: string }) {
   };
 
   const handleDateTimeConfirm = () => {
-    if (selectedDate && selectedTime && selectedProfessional) {
-      setStep('info');
-    }
+    if (selectedDate && selectedTime && selectedProfessional) setStep('info');
   };
 
   const handleSubmit = (e: React.FormEvent) => {
@@ -297,279 +310,289 @@ function BookingContent({ userId }: { userId: string }) {
     createAppointmentMutation.mutate();
   };
 
+
+  // --- RENDERIZAÇÃO ---
   return (
-    <div className="min-h-screen !bg-[#f8fafc] flex flex-col items-center justify-start pt-8 pb-12 px-4 !text-slate-900" style={{ color: '#0f172a' }}>
-      <div className="w-full max-w-lg space-y-6">
-        <div className="text-center space-y-2 relative">
-          {step !== 'success' && step !== 'service' && (
-            <Button 
-              variant="ghost" 
-              size="sm" 
-              onClick={() => setStep(step === 'info' ? 'datetime' : 'service')} 
-              className="absolute left-0 top-0 md:-left-12 !text-slate-500 hover:!text-slate-900"
-            >
-              <ArrowLeft className="w-4 h-4 mr-2" /> Voltar
-            </Button>
-          )}
+    // MUDANÇA 1: Fundo agora é um gradiente sutil "Champagne" (muito mais chique que o cinza)
+    <div className="min-h-screen bg-gradient-to-br from-[#fffbf0] via-[#fff5f5] to-[#fff0f0] flex flex-col items-center justify-start pb-12 font-sans text-slate-900">
+      
+      {/* BANNER DE FUNDO */}
+      <div 
+        className={`w-full h-64 md:h-80 shadow-lg bg-cover bg-center relative transition-all duration-500 ${!bannerUrl ? 'bg-gradient-to-r from-amber-200 to-orange-100' : ''}`}
+        style={bannerUrl ? { backgroundImage: `url(${bannerUrl})` } : undefined}
+      >
+        <div className="absolute inset-0 bg-gradient-to-t from-black/40 to-transparent"></div>
+      </div>
+
+      <div className="w-full max-w-lg px-4 -mt-32 relative z-10">
+        
+        {/* CABEÇALHO DO SALÃO (CARD FLUTUANTE) */}
+        {/* MUDANÇA 2: Bordas mais suaves e quentes (stone-100 em vez de slate-200) */}
+        <div className="bg-white/95 backdrop-blur-md rounded-3xl shadow-xl p-6 mb-8 text-center border border-white/50 relative overflow-hidden">
           
-          <div className="inline-flex items-center justify-center w-14 h-14 rounded-2xl !bg-white shadow-sm border !border-slate-200 mb-2">
-            <Sparkles className="w-7 h-7 text-primary" />
+          <div className="w-28 h-28 bg-white rounded-full mx-auto -mt-20 flex items-center justify-center shadow-2xl border-4 border-white">
+             <div className="w-full h-full rounded-full bg-[#fffbf0] flex items-center justify-center overflow-hidden">
+                <Sparkles className="w-12 h-12 text-[#d4af37]" /> {/* Dourado */}
+             </div>
           </div>
-          <h1 className="text-2xl font-bold !text-[#0f172a]">Agendar Horário</h1>
-          <p className="text-sm !text-[#64748b]">
-            {step === 'service' && 'Escolha o procedimento ideal para você.'}
-            {step === 'datetime' && 'Escolha o profissional, dia e horário.'}
-            {step === 'info' && 'Para finalizar, insira seus dados.'}
+
+          <h1 className="text-3xl font-bold text-slate-900 mt-4 tracking-tight">{businessName}</h1>
+          <p className="text-sm text-slate-500 flex items-center justify-center gap-1 mt-2 uppercase tracking-widest font-medium">
+            <Star className="w-3 h-3 text-[#d4af37] fill-[#d4af37]" />
+            Experiência Premium
           </p>
+
+          {step !== 'success' && step !== 'service' && (
+            <button 
+              onClick={() => setStep(step === 'info' ? 'datetime' : 'service')} 
+              className="absolute top-4 left-4 text-slate-400 hover:text-[#d4af37] transition-colors bg-white/80 p-2 rounded-full hover:bg-white shadow-sm"
+            >
+              <ArrowLeft className="w-5 h-5" />
+            </button>
+          )}
         </div>
 
-        {step === 'service' && (
-          <div className="space-y-8 animate-fade-in">
-            {Object.entries(groupedServices).map(([category, items]) => (
-              <div key={category}>
-                <h2 className="text-sm font-bold !text-[#475569] uppercase tracking-wider mb-3 pl-1 border-l-4 border-primary/50 ml-1">
-                  {category}
-                </h2>
-                <div className="grid grid-cols-1 gap-3">
-                  {items.map((service) => (
-                    <button
-                      key={service.id}
-                      onClick={() => {
-                        setSelectedService(service);
-                        setStep('datetime');
-                        setSelectedProfessional(null);
-                        setSelectedDate('');
-                        setSelectedTime('');
-                      }}
-                      className="group relative flex items-start p-5 !bg-white rounded-xl border !border-slate-200 shadow-sm hover:!border-primary/50 hover:shadow-md transition-all text-left w-full"
-                    >
-                      <div className="flex-1 pr-4">
-                        <div className="flex justify-between items-start mb-1">
-                           <h3 className="font-bold !text-[#0f172a] text-lg group-hover:!text-primary transition-colors">
-                             {service.name}
-                           </h3>
-                           {service.price && (
-                             <span className="font-bold !text-[#1e293b] !bg-slate-100 px-2 py-1 rounded text-sm whitespace-nowrap ml-2">
-                               R$ {service.price.toFixed(2)}
-                             </span>
-                           )}
-                        </div>
-                        {service.description && (
-                          <p className="text-sm !text-[#475569] mt-1 leading-relaxed line-clamp-2 font-medium">
-                            {service.description}
-                          </p>
-                        )}
-                        <div className="flex items-center gap-3 text-xs !text-[#64748b] mt-3 font-semibold">
-                          <span className="flex items-center !bg-slate-50 px-2 py-1 rounded">
-                            <Clock className="w-3.5 h-3.5 mr-1 text-slate-400" /> {service.duration_minutes} min
-                          </span>
-                        </div>
-                      </div>
-                      <div className="mt-1">
-                         <div className="w-8 h-8 rounded-full !bg-slate-50 flex items-center justify-center group-hover:!bg-primary group-hover:!text-white transition-all text-slate-400">
-                            <ArrowLeft className="w-4 h-4 rotate-180" />
-                         </div>
-                      </div>
-                    </button>
-                  ))}
-                </div>
-              </div>
-            ))}
+        <div className="space-y-8">
+          
+          {/* TÍTULO DA ETAPA (Estilo mais limpo) */}
+          <div className="text-center">
+             <h2 className="text-xl font-medium text-slate-700">
+                {step === 'service' && 'Qual procedimento você deseja?'}
+                {step === 'datetime' && 'Escolha o melhor horário'}
+                {step === 'info' && 'Confirme seus dados'}
+                {step === 'success' && 'Agendamento Confirmado!'}
+             </h2>
+             <div className="h-0.5 w-16 bg-[#d4af37]/30 mx-auto rounded-full mt-3"></div>
           </div>
-        )}
 
-        {step === 'datetime' && (
-          <div className="!bg-white rounded-2xl border !border-slate-200 shadow-lg p-6 animate-fade-in space-y-8">
-            <div>
-              <label className="text-sm font-bold !text-[#0f172a] mb-3 flex items-center gap-2">
-                <UserIcon className="w-4 h-4 text-primary" />
-                Selecione o Profissional
-              </label>
-              
-              {(!professionals || professionals.length === 0) ? (
-                 <p className="text-sm text-red-500">Nenhum profissional disponível.</p>
-              ) : (
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                  {professionals.map((prof) => (
-                    <button
-                      key={prof.id}
-                      onClick={() => {
-                        setSelectedProfessional(prof);
-                        setSelectedDate('');
-                        setSelectedTime('');
-                      }}
-                      className={`
-                        p-3 rounded-xl border text-left transition-all flex flex-col justify-center
-                        ${selectedProfessional?.id === prof.id 
-                          ? '!bg-primary !text-white !border-primary shadow-md transform scale-[1.02]' 
-                          : '!bg-white !text-slate-600 !border-slate-200 hover:!border-primary/50 hover:!bg-slate-50'}
-                      `}
-                    >
-                      <span className="font-bold text-sm">{prof.name}</span>
-                      <span className={`text-[10px] uppercase font-bold mt-1 inline-block px-1.5 py-0.5 rounded w-fit
-                         ${selectedProfessional?.id === prof.id ? 'bg-white/20 text-white' : 'bg-slate-100 text-slate-500'}
-                      `}>
-                        {prof.capacity > 1 ? `${prof.capacity} Vagas/Horário` : 'Atendimento Exclusivo'}
-                      </span>
-                    </button>
-                  ))}
-                </div>
-              )}
-            </div>
-
-            {selectedProfessional && (
-              <div className="space-y-8 animate-fade-in">
-                <div>
-                  <label className="text-sm font-bold !text-[#0f172a] mb-3 block">Selecione o dia</label>
-                  <div className="grid grid-cols-3 sm:grid-cols-4 gap-2">
-                    {getAvailableDates().map((date) => (
+          {step === 'service' && (
+            <div className="space-y-8 animate-fade-in">
+              {Object.entries(groupedServices).map(([category, items]) => (
+                <div key={category}>
+                  <h3 className="text-xs font-bold text-[#d4af37] uppercase tracking-widest mb-4 ml-1 flex items-center gap-2">
+                    <span className="w-2 h-2 rounded-full bg-[#d4af37]"></span>
+                    {category}
+                  </h3>
+                  <div className="grid grid-cols-1 gap-4">
+                    {items.map((service) => (
                       <button
-                        key={date}
+                        key={service.id}
                         onClick={() => {
-                            setSelectedDate(date);
-                            setSelectedTime('');
+                          setSelectedService(service);
+                          setStep('datetime');
+                          setSelectedProfessional(null);
+                          setSelectedDate('');
+                          setSelectedTime('');
                         }}
-                        className={`
-                          p-2 rounded-lg text-sm font-medium border transition-all
-                          ${selectedDate === date 
-                            ? '!bg-primary !text-white !border-primary shadow-md transform scale-105' 
-                            : '!bg-white !text-[#475569] !border-slate-200 hover:!border-primary/50 hover:!bg-slate-50'}
-                        `}
+                        className="group relative flex items-center p-5 bg-white rounded-2xl border border-[#f5f0e6] shadow-[0_2px_15px_-3px_rgba(0,0,0,0.03)] hover:border-[#d4af37]/30 hover:shadow-lg transition-all text-left w-full overflow-hidden"
                       >
-                        <span className="block text-[10px] opacity-90 uppercase mb-0.5">{format(parseISO(date), 'EEE', { locale: ptBR })}</span>
-                        <span className="block text-xl font-bold">{format(parseISO(date), 'dd')}</span>
+                        <div className="flex-1">
+                          <div className="flex justify-between items-center mb-1">
+                             <span className="font-bold text-slate-800 text-lg group-hover:text-[#d4af37] transition-colors">
+                               {service.name}
+                             </span>
+                             {service.price && (
+                               <span className="font-medium text-slate-900 bg-[#fffbf0] px-3 py-1 rounded-full text-sm border border-[#f5f0e6]">
+                                 R$ {service.price.toFixed(2)}
+                               </span>
+                             )}
+                          </div>
+                          {service.description && (
+                            <p className="text-sm text-slate-500 leading-relaxed mt-1">
+                              {service.description}
+                            </p>
+                          )}
+                          <div className="flex items-center gap-2 text-xs text-slate-400 mt-3 font-medium">
+                            <Clock className="w-3.5 h-3.5" /> {service.duration_minutes} minutos de sessão
+                          </div>
+                        </div>
                       </button>
                     ))}
                   </div>
                 </div>
+              ))}
+            </div>
+          )}
 
-                {selectedDate && (
-                  <div className="animate-fade-in">
-                    <label className="text-sm font-bold !text-[#0f172a] mb-3 block">
-                      Horários disponíveis para {selectedProfessional.name.split(' ')[0]}
-                    </label>
-                    
-                    {getAvailableTimeSlots().length === 0 ? (
-                        <div className="p-4 bg-red-50 text-red-600 rounded-lg text-sm text-center border border-red-100">
-                           Agenda lotada ou indisponível para esta data.
+          {step === 'datetime' && (
+            <div className="bg-white rounded-3xl border border-[#f5f0e6] shadow-xl p-6 animate-fade-in space-y-8">
+              {/* Mantive a lógica funcional, só limpei o visual */}
+              <div>
+                <label className="text-sm font-bold text-slate-900 mb-4 flex items-center gap-2 uppercase tracking-wide">
+                  1. Profissional
+                </label>
+                
+                {(!professionals || professionals.length === 0) ? (
+                   <p className="text-sm text-red-500">Nenhum profissional disponível.</p>
+                ) : (
+                  <div className="grid grid-cols-1 gap-3">
+                    {professionals.map((prof) => (
+                      <button
+                        key={prof.id}
+                        onClick={() => {
+                          setSelectedProfessional(prof);
+                          setSelectedDate('');
+                          setSelectedTime('');
+                        }}
+                        className={`
+                          p-4 rounded-xl border text-left transition-all relative
+                          ${selectedProfessional?.id === prof.id 
+                            ? 'bg-[#fffbf0] border-[#d4af37] text-slate-900 shadow-sm' 
+                            : 'bg-white text-slate-600 border-slate-100 hover:border-[#d4af37]/30'}
+                        `}
+                      >
+                        <div className="flex items-center justify-between">
+                            <span className="font-bold text-sm">{prof.name}</span>
+                            {selectedProfessional?.id === prof.id && (
+                                <CheckCircle className="w-5 h-5 text-[#d4af37]" />
+                            )}
                         </div>
-                    ) : (
-                        <div className="grid grid-cols-3 sm:grid-cols-4 gap-2 max-h-56 overflow-y-auto pr-1">
-                          {getAvailableTimeSlots().map((time) => (
-                            <button
-                              key={time}
-                              onClick={() => setSelectedTime(time)}
-                              className={`
-                                py-2.5 px-1 rounded-lg text-sm transition-all border font-semibold
-                                ${selectedTime === time 
-                                  ? '!bg-primary !text-white !border-primary shadow-md' 
-                                  : '!bg-white !text-[#475569] !border-slate-200 hover:!bg-slate-50 hover:!border-slate-300'}
-                              `}
-                            >
-                              {time}
-                            </button>
-                          ))}
-                        </div>
-                    )}
+                      </button>
+                    ))}
                   </div>
                 )}
               </div>
-            )}
 
-            <Button 
-              className="w-full bg-primary hover:bg-primary/90 text-white font-bold h-12 mt-4 shadow-lg" 
-              disabled={!selectedDate || !selectedTime || !selectedProfessional}
-              onClick={handleDateTimeConfirm}
-            >
-              Continuar Agendamento
-            </Button>
-          </div>
-        )}
+              {selectedProfessional && (
+                <div className="space-y-8 animate-fade-in">
+                  <div>
+                    <label className="text-sm font-bold text-slate-900 mb-4 block uppercase tracking-wide">2. Data</label>
+                    <div className="flex gap-3 overflow-x-auto pb-4 scrollbar-hide">
+                      {getAvailableDates().map((date) => (
+                        <button
+                          key={date}
+                          onClick={() => {
+                              setSelectedDate(date);
+                              setSelectedTime('');
+                          }}
+                          className={`
+                            min-w-[5rem] p-4 rounded-2xl flex flex-col items-center justify-center transition-all border
+                            ${selectedDate === date 
+                              ? 'bg-slate-800 text-white border-slate-800 shadow-lg transform -translate-y-1' 
+                              : 'bg-white text-slate-400 border-slate-100 hover:border-[#d4af37]/50'}
+                          `}
+                        >
+                          <span className="text-[10px] uppercase font-bold mb-1 opacity-80">{format(parseISO(date), 'EEE', { locale: ptBR })}</span>
+                          <span className="text-2xl font-black">{format(parseISO(date), 'dd')}</span>
+                        </button>
+                      ))}
+                    </div>
+                  </div>
 
-        {step === 'info' && (
-          <Card className="p-6 animate-fade-in border-0 shadow-xl !bg-white">
-            <form onSubmit={handleSubmit} className="space-y-5">
-              <div className="!bg-slate-50 p-5 rounded-xl border !border-slate-100">
-                <h3 className="font-bold !text-[#0f172a] mb-4 text-sm uppercase tracking-wide border-b !border-slate-200 pb-2">Resumo do Pedido</h3>
-                <div className="space-y-3">
-                   <div className="flex justify-between items-start">
-                      <div>
-                        <span className="font-bold !text-[#0f172a] text-lg block">{selectedService?.name}</span>
-                        {selectedService?.description && <span className="text-xs !text-[#64748b] block mt-1 font-medium">{selectedService.description}</span>}
-                      </div>
-                      <span className="font-bold text-primary text-lg">R$ {selectedService?.price?.toFixed(2)}</span>
-                   </div>
-                   
-                   <div className="!bg-white p-2 rounded border !border-slate-200 flex items-center gap-2">
-                      <UserIcon className="w-3.5 h-3.5 text-primary" />
-                      <span className="text-xs !text-[#64748b] font-semibold">Profissional:</span>
-                      <span className="font-bold !text-[#0f172a] text-sm">{selectedProfessional?.name}</span>
-                   </div>
-
-                   <div className="grid grid-cols-2 gap-4 pt-1">
-                      <div className="!bg-white p-2 rounded border !border-slate-200">
-                          <span className="text-xs !text-[#64748b] block font-semibold">Data</span>
-                          <span className="font-bold !text-[#0f172a] capitalize text-sm">{selectedDate && format(parseISO(selectedDate), "EEE, dd/MM", { locale: ptBR })}</span>
-                      </div>
-                      <div className="!bg-white p-2 rounded border !border-slate-200">
-                          <span className="text-xs !text-[#64748b] block font-semibold">Horário</span>
-                          <span className="font-bold !text-[#0f172a] text-sm">{selectedTime}</span>
-                      </div>
-                   </div>
+                  {selectedDate && (
+                    <div className="animate-fade-in">
+                      <label className="text-sm font-bold text-slate-900 mb-4 block uppercase tracking-wide">
+                        3. Horário
+                      </label>
+                      {getAvailableTimeSlots().length === 0 ? (
+                          <div className="p-4 bg-red-50 text-red-600 rounded-xl text-sm text-center border border-red-100">
+                             Sem horários livres.
+                          </div>
+                      ) : (
+                          <div className="grid grid-cols-3 gap-3 max-h-60 overflow-y-auto pr-1 custom-scrollbar">
+                            {getAvailableTimeSlots().map((time) => (
+                              <button
+                                key={time}
+                                onClick={() => setSelectedTime(time)}
+                                className={`
+                                  py-3 rounded-xl text-sm font-bold transition-all border
+                                  ${selectedTime === time 
+                                    ? 'bg-[#d4af37] text-white border-[#d4af37] shadow-md' 
+                                    : 'bg-white text-slate-600 border-slate-100 hover:border-[#d4af37] hover:text-[#d4af37]'}
+                                `}
+                              >
+                                {time}
+                              </button>
+                            ))}
+                          </div>
+                      )}
+                    </div>
+                  )}
                 </div>
-              </div>
+              )}
 
-              <div className="space-y-4">
-                <div>
-                  <label className="text-sm font-bold !text-[#0f172a] mb-1.5 block">Seu Nome Completo</label>
-                  <Input 
-                    value={clientName} 
-                    onChange={(e) => setClientName(e.target.value)} 
-                    placeholder="Ex: Maria Silva" 
-                    required 
-                    className="!bg-white !border-slate-300 !text-[#0f172a] h-11 placeholder:text-slate-400" 
-                  />
-                </div>
-                <div>
-                  <label className="text-sm font-bold !text-[#0f172a] mb-1.5 block">Seu WhatsApp</label>
-                  <Input 
-                    value={clientPhone} 
-                    onChange={(e) => setClientPhone(e.target.value)} 
-                    placeholder="(11) 99999-9999" 
-                    required 
-                    className="!bg-white !border-slate-300 !text-[#0f172a] h-11 placeholder:text-slate-400" 
-                  />
-                </div>
-              </div>
-
-              <Button type="submit" className="w-full bg-primary hover:bg-primary/90 text-white font-bold h-12 text-base shadow-lg mt-2" disabled={createAppointmentMutation.isPending}>
-                {createAppointmentMutation.isPending ? 'Confirmando...' : 'Confirmar Agendamento'}
-              </Button>
-            </form>
-          </Card>
-        )}
-
-        {step === 'success' && (
-          <Card className="p-8 text-center animate-fade-in !bg-white border !border-green-100 shadow-2xl">
-             <div className="w-20 h-20 rounded-full !bg-green-50 flex items-center justify-center mx-auto mb-6 ring-8 ring-green-50/50">
-              <CheckCircle className="w-10 h-10 text-green-600" />
-            </div>
-            <h2 className="text-2xl font-bold mb-3 !text-[#0f172a]">Agendado com Sucesso!</h2>
-            <p className="!text-[#475569] mb-8 leading-relaxed">
-              Tudo certo, <strong className="!text-[#0f172a]">{clientName.split(' ')[0]}</strong>.<br/>
-              Seu horário com <span className="font-bold">{selectedProfessional?.name}</span> está confirmado.<br/>
-              Nos vemos no dia <span className="text-primary font-bold">{format(parseISO(selectedDate), "dd/MM")}</span> às <span className="text-primary font-bold">{selectedTime}</span>.
-            </p>
-            <div className="space-y-3">
-              <Button variant="outline" className="w-full !border-slate-200 !text-[#06f706] hover:!bg-slate-50 h-11" onClick={() => window.open(generateGoogleCalendarUrl(selectedService?.name || '', selectedDate, selectedTime, selectedService?.duration_minutes || 60), '_blank')}>
-                <Calendar className="w-4 h-4 mr-2" /> Adicionar à Agenda
-              </Button>
-              <Button className="w-full bg-primary hover:bg-primary/90 text-white font-bold h-11" onClick={() => window.location.reload()}>
-                Fazer outro agendamento
+              <Button 
+                className="w-full bg-slate-900 hover:bg-slate-800 text-white font-bold h-14 rounded-xl shadow-xl text-lg mt-6" 
+                disabled={!selectedDate || !selectedTime || !selectedProfessional}
+                onClick={handleDateTimeConfirm}
+              >
+                Continuar
               </Button>
             </div>
-          </Card>
-        )}
+          )}
+
+          {step === 'info' && (
+            <Card className="p-0 animate-fade-in border-0 shadow-2xl bg-white rounded-3xl overflow-hidden">
+              <div className="bg-[#fffbf0] p-6 border-b border-[#f5f0e6]">
+                  <h3 className="font-bold text-[#d4af37] mb-4 text-xs uppercase tracking-widest">Resumo do Pedido</h3>
+                  <div className="flex justify-between items-start mb-2">
+                     <div>
+                       <span className="font-playfair font-bold text-slate-900 text-2xl block">{selectedService?.name}</span>
+                       <span className="text-sm text-slate-500 block mt-1">Profissional: {selectedProfessional?.name}</span>
+                     </div>
+                     <span className="font-bold text-slate-900 text-xl">R$ {selectedService?.price?.toFixed(2)}</span>
+                  </div>
+                  <div className="flex items-center gap-2 text-slate-600 mt-4 bg-white/50 p-3 rounded-lg w-fit">
+                      <Calendar className="w-4 h-4" />
+                      <span className="capitalize font-medium">{selectedDate && format(parseISO(selectedDate), "EEE, dd/MM", { locale: ptBR })}</span>
+                      <span className="mx-1">•</span>
+                      <span>{selectedTime}</span>
+                  </div>
+              </div>
+
+              <form onSubmit={handleSubmit} className="p-8 space-y-6">
+                <div className="space-y-4">
+                  <div>
+                    <label className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-2 block">Seu Nome</label>
+                    <Input 
+                      value={clientName} 
+                      onChange={(e) => setClientName(e.target.value)} 
+                      placeholder="Ex: Maria Silva" 
+                      required 
+                      className="bg-slate-50 border-slate-200 h-14 rounded-xl focus:ring-[#d4af37]" 
+                    />
+                  </div>
+                  <div>
+                    <label className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-2 block">WhatsApp</label>
+                    <Input 
+                      value={clientPhone} 
+                      onChange={(e) => setClientPhone(e.target.value)} 
+                      placeholder="(11) 99999-9999" 
+                      required 
+                      className="bg-slate-50 border-slate-200 h-14 rounded-xl focus:ring-[#d4af37]" 
+                    />
+                  </div>
+                </div>
+
+                <Button type="submit" className="w-full bg-[#d4af37] hover:bg-[#c5a028] text-white font-bold h-14 rounded-xl shadow-lg text-lg" disabled={createAppointmentMutation.isPending}>
+                  {createAppointmentMutation.isPending ? 'Confirmando...' : 'Confirmar Agendamento'}
+                </Button>
+              </form>
+            </Card>
+          )}
+
+          {step === 'success' && (
+            <Card className="p-10 text-center animate-fade-in bg-white border-0 shadow-2xl rounded-3xl">
+               <div className="w-24 h-24 rounded-full bg-green-50 flex items-center justify-center mx-auto mb-6 ring-8 ring-green-50/30">
+                <CheckCircle className="w-12 h-12 text-green-600" />
+              </div>
+              <h2 className="text-3xl font-bold mb-4 text-slate-900 tracking-tight">Agendado!</h2>
+              <p className="text-slate-500 mb-8 leading-relaxed">
+                Tudo certo, <strong className="text-slate-900">{clientName.split(' ')[0]}</strong>.<br/>
+                Seu horário para <strong>{selectedService?.name}</strong> está reservado.
+              </p>
+              
+              <div className="space-y-3">
+                <Button variant="outline" className="w-full border-slate-200 text-slate-600 hover:bg-slate-50 h-14 rounded-xl" onClick={() => window.open(generateGoogleCalendarUrl(selectedService?.name || '', selectedDate, selectedTime, selectedService?.duration_minutes || 60), '_blank')}>
+                  <Calendar className="w-4 h-4 mr-2" /> Adicionar à Agenda
+                </Button>
+                <Button className="w-full bg-slate-900 hover:bg-slate-800 text-white font-bold h-14 rounded-xl" onClick={() => window.location.reload()}>
+                  Fazer outro agendamento
+                </Button>
+              </div>
+            </Card>
+          )}
+        </div>
       </div>
     </div>
   );
