@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useRef, useEffect } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '../../lib/supabase';
 import { useAuth } from '../../hooks/useAuth';
@@ -7,42 +7,54 @@ import { Button } from '../ui/button';
 import { Switch } from '../ui/switch';
 import { Input } from '../ui/input';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '../ui/dialog';
-import { Clock, Copy, Link as LinkIcon } from 'lucide-react';
+import { Clock, Copy, Link as LinkIcon, Image as ImageIcon, UploadCloud, Save, Store } from 'lucide-react';
 import { toast } from 'sonner';
-
-const DAYS = [
-  { id: 0, label: 'Domingo' },
-  { id: 1, label: 'Segunda-feira' },
-  { id: 2, label: 'Terça-feira' },
-  { id: 3, label: 'Quarta-feira' },
-  { id: 4, label: 'Quinta-feira' },
-  { id: 5, label: 'Sexta-feira' },
-  { id: 6, label: 'Sábado' },
-];
+import { useTranslation } from 'react-i18next';
 
 export default function AvailabilitySettings() {
   const { user } = useAuth();
+  const { t } = useTranslation();
   const queryClient = useQueryClient();
   const [editingDay, setEditingDay] = useState<any>(null);
-  
-  // Estado temporário para edição
   const [times, setTimes] = useState({ start: '', end: '' });
+  
+  // Estados Locais
+  const [uploading, setUploading] = useState(false);
+  const [slugValue, setSlugValue] = useState('');
+  const [businessName, setBusinessName] = useState(''); // Novo estado para o nome
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
-  // 1. BUSCA O PERFIL (PARA O LINK PERSONALIZADO)
+  const daysOfWeek = [
+    { id: 0, label: t('common.weekdays.0') },
+    { id: 1, label: t('common.weekdays.1') },
+    { id: 2, label: t('common.weekdays.2') },
+    { id: 3, label: t('common.weekdays.3') },
+    { id: 4, label: t('common.weekdays.4') },
+    { id: 5, label: t('common.weekdays.5') },
+    { id: 6, label: t('common.weekdays.6') },
+  ];
+
+  // Busca Perfil
   const { data: profile } = useQuery({
-    queryKey: ['my-profile-slug', user?.id],
+    queryKey: ['my-profile-settings', user?.id],
     queryFn: async () => {
       const { data } = await supabase
         .from('business_profiles')
-        .select('slug')
+        .select('slug, banner_url, business_name')
         .eq('user_id', user?.id)
         .maybeSingle();
       return data;
     },
-    enabled: !!user,
   });
 
-  // 2. BUSCA DISPONIBILIDADE
+  // Atualiza estados quando dados chegam
+  useEffect(() => {
+    if (profile) {
+      setSlugValue(profile.slug || '');
+      setBusinessName(profile.business_name || '');
+    }
+  }, [profile]);
+
   const { data: availability } = useQuery({
     queryKey: ['availability', user?.id],
     queryFn: async () => {
@@ -55,27 +67,81 @@ export default function AvailabilitySettings() {
     },
   });
 
-  // CONSTRÓI O LINK (Lógica nova)
   const baseUrl = window.location.origin;
-  const publicUrl = profile?.slug 
-    ? `${baseUrl}/${profile.slug}` 
-    : `${baseUrl}/book/${user?.id}`;
+  // Use o slug local se o usuário estiver editando, senão o do perfil
+  const finalSlug = slugValue || profile?.slug || user?.id; 
+  const publicUrl = `${baseUrl}/${finalSlug}`;
 
   const handleCopyLink = () => {
     navigator.clipboard.writeText(publicUrl);
-    toast.success('Link copiado para a área de transferência!');
+    toast.success('Link copiado!');
   };
 
-  // --- MUTAÇÕES DE DISPONIBILIDADE ---
+  // --- ATUALIZAR DADOS DO PERFIL (NOME E SLUG) ---
+  const updateProfileMutation = useMutation({
+    mutationFn: async () => {
+        const cleanSlug = slugValue.toLowerCase().replace(/[^a-z0-9-]/g, '-');
+        
+        const { error } = await supabase
+            .from('business_profiles')
+            .update({ 
+              slug: cleanSlug,
+              business_name: businessName
+            })
+            .eq('user_id', user?.id);
+            
+        if (error) throw error;
+    },
+    onSuccess: () => {
+        queryClient.invalidateQueries({ queryKey: ['my-profile-settings'] });
+        toast.success('Dados atualizados com sucesso!');
+    },
+    onError: () => toast.error('Erro ao atualizar. Tente outro link.')
+  });
+
+  // --- UPLOAD DO BANNER ---
+  const handleBannerUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
+    try {
+      setUploading(true);
+      if (!event.target.files || event.target.files.length === 0) return;
+
+      const file = event.target.files[0];
+      const fileExt = file.name.split('.').pop();
+      const fileName = `${user?.id}-${Date.now()}.${fileExt}`;
+      const filePath = `${fileName}`;
+
+      const { error: uploadError } = await supabase.storage
+        .from('salon-images')
+        .upload(filePath, file);
+
+      if (uploadError) throw uploadError;
+
+      const { data: urlData } = supabase.storage
+        .from('salon-images')
+        .getPublicUrl(filePath);
+
+      const { error: dbError } = await supabase
+        .from('business_profiles')
+        .update({ banner_url: urlData.publicUrl })
+        .eq('user_id', user?.id);
+
+      if (dbError) throw dbError;
+
+      toast.success('Banner atualizado!');
+      queryClient.invalidateQueries({ queryKey: ['my-profile-settings'] });
+
+    } catch (error: any) {
+      toast.error('Erro no upload: ' + error.message);
+    } finally {
+      setUploading(false);
+    }
+  };
+
   const toggleDayMutation = useMutation({
     mutationFn: async ({ dayId, currentStatus }: { dayId: number, currentStatus: boolean }) => {
       const setting = availability?.find(a => a.day_of_week === dayId);
-      
       if (setting) {
-        await supabase
-          .from('availability_settings')
-          .update({ is_active: !currentStatus })
-          .eq('id', setting.id);
+        await supabase.from('availability_settings').update({ is_active: !currentStatus }).eq('id', setting.id);
       } else {
         await supabase.from('availability_settings').insert({
           user_id: user?.id,
@@ -92,19 +158,9 @@ export default function AvailabilitySettings() {
   const updateTimeMutation = useMutation({
     mutationFn: async () => {
       if (!editingDay) return;
-      
-      // Verifica se já existe registro
       const setting = availability?.find(a => a.day_of_week === editingDay.id);
-
       if (setting) {
-        await supabase
-          .from('availability_settings')
-          .update({ 
-            start_time: times.start,
-            end_time: times.end,
-            is_active: true 
-          })
-          .eq('id', setting.id);
+        await supabase.from('availability_settings').update({ start_time: times.start, end_time: times.end, is_active: true }).eq('id', setting.id);
       } else {
         await supabase.from('availability_settings').insert({
           user_id: user?.id,
@@ -118,7 +174,7 @@ export default function AvailabilitySettings() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['availability'] });
       setEditingDay(null);
-      toast.success('Horário atualizado!');
+      toast.success(t('common.save') + '!');
     },
   });
 
@@ -133,40 +189,119 @@ export default function AvailabilitySettings() {
 
   return (
     <div className="space-y-6 animate-fade-in pb-10">
+      
       <div>
-        <h2 className="text-2xl font-bold text-white">Horários de Atendimento</h2>
-        <p className="text-gray-400">Configure sua disponibilidade semanal e link de agendamento.</p>
+        <h2 className="text-2xl font-bold text-white">{t('dashboard.settings.title')}</h2>
+        <p className="text-gray-400">{t('dashboard.settings.subtitle')}</p>
       </div>
 
-      {/* CARTÃO DO LINK PÚBLICO (ATUALIZADO) */}
-      <Card className="p-6 bg-[#1e293b] border-white/10">
-        <div className="flex flex-col gap-4">
-          <div className="flex items-center gap-2 text-primary font-medium mb-1">
-            <LinkIcon className="w-4 h-4" />
-            <h3>Link Público de Agendamento</h3>
-          </div>
+      <div className="grid md:grid-cols-2 gap-6">
+        
+        {/* --- DADOS DO NEGÓCIO (LINK E NOME) --- */}
+        <Card className="p-6 bg-[#1e293b] border-white/10 flex flex-col gap-6">
           
-          <div className="flex gap-2">
-            <div className="relative flex-1">
-              <input 
-                readOnly
-                value={publicUrl}
-                className="w-full bg-black/20 border border-white/10 rounded-lg px-4 py-3 text-sm text-gray-300 font-mono focus:outline-none focus:border-primary/50"
-              />
-            </div>
-            <Button onClick={handleCopyLink} variant="outline" className="border-white/10 hover:bg-white/5 text-white">
-              <Copy className="w-4 h-4" />
-            </Button>
+          {/* Campo Nome */}
+          <div>
+             <div className="flex items-center gap-2 text-primary font-medium mb-2">
+                <Store className="w-5 h-5" />
+                <h3>Nome do Estabelecimento</h3>
+             </div>
+             <div className="flex gap-2">
+                <input 
+                    value={businessName}
+                    onChange={(e) => setBusinessName(e.target.value)}
+                    placeholder="Ex: Studio VIP"
+                    className="flex-1 bg-black/20 border border-white/10 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-primary/50"
+                />
+             </div>
           </div>
-          <p className="text-xs text-gray-500">
-            Compartilhe este link com seus clientes para que possam agendar online.
-          </p>
-        </div>
-      </Card>
 
-      {/* LISTA DE DIAS DA SEMANA */}
+          {/* Campo Link */}
+          <div>
+             <div className="flex items-center gap-2 text-primary font-medium mb-2">
+                <LinkIcon className="w-5 h-5" />
+                <h3>{t('dashboard.settings.link_title')}</h3>
+             </div>
+             <div className="flex gap-2 mb-2">
+                <span className="flex items-center px-3 bg-black/20 border border-white/10 rounded-l-lg text-sm text-gray-400 border-r-0">
+                    beautybook.app/
+                </span>
+                <input 
+                    value={slugValue}
+                    onChange={(e) => setSlugValue(e.target.value)}
+                    placeholder="nome-do-salao"
+                    className="flex-1 bg-black/20 border border-white/10 rounded-r-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-primary/50"
+                />
+             </div>
+             
+             {/* Link Completo + Copiar */}
+             <div className="flex gap-2 items-center p-3 bg-primary/5 border border-primary/10 rounded-lg">
+                <p className="text-xs text-primary flex-1 font-mono truncate">
+                    {publicUrl}
+                </p>
+                <Button onClick={handleCopyLink} variant="ghost" size="icon" className="h-6 w-6 text-primary hover:text-white hover:bg-primary/20">
+                    <Copy className="w-3 h-3" />
+                </Button>
+             </div>
+          </div>
+
+          {/* Botão de Salvar Geral */}
+          <Button 
+            onClick={() => updateProfileMutation.mutate()} 
+            className="w-full bg-primary hover:bg-primary/90 text-gray-900 font-bold"
+          >
+            <Save className="w-4 h-4 mr-2" /> Salvar Alterações
+          </Button>
+
+        </Card>
+
+        {/* --- UPLOAD DE BANNER --- */}
+        <Card className="p-6 bg-[#1e293b] border-white/10 overflow-hidden relative">
+           <div className="flex items-center justify-between mb-4">
+              <div className="flex items-center gap-2 text-primary font-medium">
+                <ImageIcon className="w-5 h-5" />
+                <h3>Banner da Página</h3>
+              </div>
+              {uploading && <span className="text-xs text-yellow-500 animate-pulse">Enviando...</span>}
+           </div>
+
+           <div 
+             className="w-full h-40 rounded-lg bg-black/30 border border-dashed border-white/20 flex flex-col items-center justify-center cursor-pointer hover:bg-black/40 transition-colors relative group overflow-hidden"
+             onClick={() => fileInputRef.current?.click()}
+           >
+              {profile?.banner_url ? (
+                <>
+                  <img src={profile.banner_url} alt="Banner" className="w-full h-full object-cover opacity-80 group-hover:opacity-60 transition-opacity" />
+                  <div className="absolute inset-0 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity bg-black/40">
+                     <span className="bg-black/70 text-white text-xs px-3 py-1 rounded-full flex items-center gap-2">
+                        <UploadCloud className="w-3 h-3" /> Trocar Imagem
+                     </span>
+                  </div>
+                </>
+              ) : (
+                <div className="text-center p-4">
+                   <UploadCloud className="w-8 h-8 text-gray-500 mx-auto mb-2" />
+                   <p className="text-xs text-gray-400">Clique para enviar uma foto</p>
+                </div>
+              )}
+              
+              <input 
+                type="file" 
+                ref={fileInputRef}
+                className="hidden" 
+                accept="image/*"
+                onChange={handleBannerUpload}
+                disabled={uploading}
+              />
+           </div>
+           <p className="text-xs text-gray-500 mt-3 text-center">Recomendado: 1200x400px.</p>
+        </Card>
+      </div>
+
+      {/* --- HORÁRIOS --- */}
+      <h3 className="text-lg font-bold text-white mt-8 mb-4">Disponibilidade Semanal</h3>
       <div className="space-y-3">
-        {DAYS.map((day) => {
+        {daysOfWeek.map((day) => {
           const setting = availability?.find(a => a.day_of_week === day.id);
           const isActive = setting?.is_active ?? false;
           const startTime = setting?.start_time?.slice(0, 5) || '09:00';
@@ -187,29 +322,24 @@ export default function AvailabilitySettings() {
                          <Clock className="w-3 h-3" /> {startTime} - {endTime}
                        </span>
                     ) : (
-                       <span className="text-sm text-gray-500">Fechado</span>
+                       <span className="text-sm text-gray-500">{t('dashboard.settings.closed')}</span>
                     )}
                   </div>
                 </div>
 
                 <Dialog open={editingDay?.id === day.id} onOpenChange={(open) => !open && setEditingDay(null)}>
                   <DialogTrigger asChild>
-                    <Button 
-                      variant="ghost" 
-                      size="sm" 
-                      onClick={() => openEditModal(day)}
-                      className="text-gray-400 hover:text-white hover:bg-white/5"
-                    >
-                      Editar
+                    <Button variant="ghost" size="sm" onClick={() => openEditModal(day)} className="text-gray-400 hover:text-white hover:bg-white/5">
+                      {t('common.edit')}
                     </Button>
                   </DialogTrigger>
                   <DialogContent className="bg-[#1e293b] border-white/10 text-white">
                     <DialogHeader>
-                      <DialogTitle>Horário para {day.label}</DialogTitle>
+                      <DialogTitle>{day.label}</DialogTitle>
                     </DialogHeader>
                     <div className="grid grid-cols-2 gap-4 py-4">
                       <div className="space-y-2">
-                        <label className="text-xs uppercase text-gray-400 font-bold">Abertura</label>
+                        <label className="text-xs uppercase text-gray-400 font-bold">{t('dashboard.settings.label_open')}</label>
                         <Input 
                           type="time" 
                           value={times.start} 
@@ -218,7 +348,7 @@ export default function AvailabilitySettings() {
                         />
                       </div>
                       <div className="space-y-2">
-                        <label className="text-xs uppercase text-gray-400 font-bold">Fechamento</label>
+                        <label className="text-xs uppercase text-gray-400 font-bold">{t('dashboard.settings.label_close')}</label>
                         <Input 
                           type="time" 
                           value={times.end} 
@@ -228,7 +358,7 @@ export default function AvailabilitySettings() {
                       </div>
                     </div>
                     <Button onClick={() => updateTimeMutation.mutate()} className="w-full bg-primary text-gray-900 font-bold hover:bg-primary/90">
-                      Salvar Horário
+                      {t('dashboard.settings.btn_save_time')}
                     </Button>
                   </DialogContent>
                 </Dialog>

@@ -8,6 +8,7 @@ import { Input } from '../ui/input';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '../ui/dialog';
 import { Plus, Edit, Trash2, Users, UserCheck } from 'lucide-react';
 import { toast } from 'sonner';
+import { useTranslation } from 'react-i18next'; // <---
 
 interface Professional {
   id: string;
@@ -18,13 +19,14 @@ interface Professional {
 
 export default function ProfessionalsManager() {
   const { user } = useAuth();
+  const { t } = useTranslation(); // <---
   const queryClient = useQueryClient();
   const [isOpen, setIsOpen] = useState(false);
   const [editingProf, setEditingProf] = useState<Professional | null>(null);
   
   const [formData, setFormData] = useState({
     name: '',
-    capacity: '1', // Padrão é 1 (Exclusivo)
+    capacity: '1',
   });
 
   // 1. Busca Profissionais
@@ -41,7 +43,7 @@ export default function ProfessionalsManager() {
     },
   });
 
-  // 2. Mutações (Criar, Editar, Excluir)
+  // 2. Mutações
   const createMutation = useMutation({
     mutationFn: async (data: any) => {
       const { error } = await supabase.from('professionals').insert({ ...data, user_id: user?.id });
@@ -49,10 +51,10 @@ export default function ProfessionalsManager() {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['professionals'] });
-      toast.success('Profissional adicionado!');
+      toast.success(t('common.save') + '!');
       handleClose();
     },
-    onError: () => toast.error('Erro ao adicionar.'),
+    onError: () => toast.error(t('auth.error_generic')),
   });
 
   const updateMutation = useMutation({
@@ -62,29 +64,26 @@ export default function ProfessionalsManager() {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['professionals'] });
-      toast.success('Profissional atualizado!');
+      toast.success(t('common.save') + '!');
       handleClose();
     },
-    onError: () => toast.error('Erro ao atualizar.'),
+    onError: () => toast.error(t('auth.error_generic')),
   });
 
   const deleteMutation = useMutation({
     mutationFn: async (id: string) => {
-        // Primeiro verificamos se tem agendamentos futuros para evitar erro de chave estrangeira
-        // Para simplificar, tentamos deletar. Se o banco reclamar, avisamos.
       const { error } = await supabase.from('professionals').delete().eq('id', id);
       if (error) throw error;
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['professionals'] });
-      toast.success('Profissional removido!');
+      toast.success(t('common.delete') + '!');
     },
     onError: (error: any) => {
-        // Erro comum: violação de foreign key (tem agendamentos vinculados)
         if (error.code === '23503') {
-            toast.error('Não é possível excluir: Este profissional possui agendamentos vinculados. Tente desativá-lo.');
+            toast.error('Não é possível excluir: Agendamentos vinculados.');
         } else {
-            toast.error('Erro ao excluir profissional.');
+            toast.error(t('auth.error_generic'));
         }
     },
   });
@@ -132,27 +131,27 @@ export default function ProfessionalsManager() {
       
       <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 border-b border-white/10 pb-6">
         <div>
-          <h2 className="text-2xl font-bold text-white">Equipe & Capacidade</h2>
-          <p className="text-gray-400">Gerencie quem trabalha e quantos clientes cada um atende simultaneamente.</p>
+          <h2 className="text-2xl font-bold text-white">{t('dashboard.team.title')}</h2>
+          <p className="text-gray-400">{t('dashboard.team.subtitle')}</p>
         </div>
 
         <Dialog open={isOpen} onOpenChange={(open) => !open && handleClose()}>
           <DialogTrigger asChild>
             <Button onClick={() => setIsOpen(true)} className="bg-primary hover:bg-primary/90 text-gray-900 font-bold">
               <Plus className="w-4 h-4 mr-2" />
-              Novo Profissional
+              {t('dashboard.team.btn_new')}
             </Button>
           </DialogTrigger>
           
           <DialogContent className="bg-[#1e293b] border-white/10 text-white">
             <DialogHeader>
               <DialogTitle className="text-white">
-                {editingProf ? 'Editar Profissional' : 'Novo Profissional'}
+                {editingProf ? t('common.edit') : t('dashboard.team.btn_new')}
               </DialogTitle>
             </DialogHeader>
             <form onSubmit={handleSubmit} className="space-y-4 py-4">
               <div>
-                <label className="text-xs font-medium mb-1.5 block text-gray-400 uppercase">Nome</label>
+                <label className="text-xs font-medium mb-1.5 block text-gray-400 uppercase">{t('dashboard.team.label_name')}</label>
                 <Input
                   value={formData.name}
                   onChange={(e) => setFormData({ ...formData, name: e.target.value })}
@@ -163,7 +162,7 @@ export default function ProfessionalsManager() {
               </div>
 
               <div>
-                <label className="text-xs font-medium mb-1.5 block text-gray-400 uppercase">Capacidade de Atendimento (Vagas)</label>
+                <label className="text-xs font-medium mb-1.5 block text-gray-400 uppercase">{t('dashboard.team.label_capacity')}</label>
                 <Input
                   type="number"
                   min="1"
@@ -174,14 +173,13 @@ export default function ProfessionalsManager() {
                   className="bg-black/20 border-white/10 text-white"
                 />
                 <p className="text-[10px] text-gray-500 mt-1">
-                    * Coloque <b>1</b> para atendimento exclusivo.<br/>
-                    * Coloque <b>4</b> para atender até 4 pessoas no mesmo horário.
+                    {t('dashboard.team.hint_capacity')}
                 </p>
               </div>
 
               <div className="flex gap-3 pt-2">
-                <Button type="button" variant="ghost" onClick={handleClose} className="flex-1 text-gray-400">Cancelar</Button>
-                <Button type="submit" className="flex-1 bg-primary text-gray-900 font-bold">Salvar</Button>
+                <Button type="button" variant="ghost" onClick={handleClose} className="flex-1 text-gray-400">{t('common.cancel')}</Button>
+                <Button type="submit" className="flex-1 bg-primary text-gray-900 font-bold">{t('common.save')}</Button>
               </div>
             </form>
           </DialogContent>
@@ -199,7 +197,7 @@ export default function ProfessionalsManager() {
                    <div>
                        <h3 className={`font-bold text-lg ${!prof.is_active && 'text-gray-500 line-through'}`}>{prof.name}</h3>
                        <span className="text-xs text-gray-400 block">
-                           Capacidade: <strong className="text-white">{prof.capacity}</strong> cliente(s)
+                           <strong className="text-white">{prof.capacity}</strong> vagas
                        </span>
                    </div>
                </div>
@@ -212,7 +210,7 @@ export default function ProfessionalsManager() {
                     className={`flex-1 border-white/10 ${prof.is_active ? 'text-green-400 hover:text-green-300' : 'text-gray-500'}`}
                     onClick={() => toggleActiveMutation.mutate({ id: prof.id, currentState: prof.is_active })}
                  >
-                    {prof.is_active ? 'Ativo' : 'Inativo'}
+                    {prof.is_active ? t('dashboard.team.active') : t('dashboard.team.inactive')}
                  </Button>
                  
                  <Button size="icon" variant="ghost" className="text-gray-400 hover:text-white" onClick={() => handleEdit(prof)}>
@@ -220,7 +218,7 @@ export default function ProfessionalsManager() {
                  </Button>
                  
                  <Button size="icon" variant="ghost" className="text-red-400/50 hover:text-red-400 hover:bg-red-500/10" onClick={() => {
-                     if(window.confirm('Tem certeza? Isso pode falhar se houver agendamentos.')) deleteMutation.mutate(prof.id)
+                     if(window.confirm(t('common.confirm_delete'))) deleteMutation.mutate(prof.id)
                  }}>
                     <Trash2 className="w-4 h-4" />
                  </Button>
@@ -231,7 +229,7 @@ export default function ProfessionalsManager() {
         {(!professionals || professionals.length === 0) && (
             <div className="col-span-full py-10 text-center border border-dashed border-white/10 rounded-xl">
                 <Users className="w-10 h-10 text-gray-600 mx-auto mb-3" />
-                <p className="text-gray-400">Nenhum profissional cadastrado.</p>
+                <p className="text-gray-400">{t('dashboard.team.empty')}</p>
             </div>
         )}
       </div>

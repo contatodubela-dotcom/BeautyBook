@@ -1,6 +1,7 @@
 import { useState } from 'react';
-import { useQuery } from '@tanstack/react-query'; // <--- Importante
-import { supabase } from '../lib/supabase'; // <--- Importante
+import { useQuery } from '@tanstack/react-query'; 
+import { supabase } from '../lib/supabase';
+import { useTranslation } from 'react-i18next'; // <--- IMPORTADO AQUI
 import { Calendar, LayoutDashboard, Settings, Sparkles, Users, ClipboardList, Share2, LogOut, FileBarChart } from 'lucide-react';
 import DashboardOverview from '../components/dashboard/DashboardOverview';
 import CalendarView from '../components/dashboard/CalendarView';
@@ -17,21 +18,27 @@ import { toast } from 'sonner';
 type TabType = 'overview' | 'calendar' | 'services' | 'availability' | 'clients' | 'reports' | 'professionals';
 
 export default function DashboardPage() {
+  const { t, i18n } = useTranslation(); // <--- HOOK DE TRADUÇÃO
   const [activeTab, setActiveTab] = useState<TabType>('overview');
   const { user, logout } = useAuth();
   const isMobile = useIsMobile();
 
+  // Função para trocar de língua
+  const toggleLanguage = () => {
+    const newLang = i18n.language === 'pt' ? 'en' : 'pt';
+    i18n.changeLanguage(newLang);
+  };
+
   const tabs = [
-    { id: 'overview' as TabType, label: 'Visão Geral', icon: LayoutDashboard },
-    { id: 'calendar' as TabType, label: 'Agenda', icon: Calendar },
-    { id: 'services' as TabType, label: 'Serviços', icon: ClipboardList },
-    { id: 'professionals' as TabType, label: 'Equipe', icon: Users },
-    { id: 'clients' as TabType, label: 'Clientes', icon: Users },
-    { id: 'reports' as TabType, label: 'Financeiro', icon: FileBarChart },
-    { id: 'availability' as TabType, label: 'Ajustes', icon: Settings },
+    { id: 'overview' as TabType, label: t('dashboard.tabs.overview'), icon: LayoutDashboard },
+    { id: 'calendar' as TabType, label: t('dashboard.tabs.calendar'), icon: Calendar },
+    { id: 'services' as TabType, label: t('dashboard.tabs.services'), icon: ClipboardList },
+    { id: 'professionals' as TabType, label: t('dashboard.tabs.team'), icon: Users },
+    { id: 'clients' as TabType, label: t('dashboard.tabs.clients'), icon: Users },
+    { id: 'reports' as TabType, label: t('dashboard.tabs.financial'), icon: FileBarChart },
+    { id: 'availability' as TabType, label: t('dashboard.tabs.settings'), icon: Settings },
   ];
 
-  // --- NOVO: Busca o Slug Personalizado ---
   const { data: profile } = useQuery({
     queryKey: ['my-business-profile', user?.id],
     queryFn: async () => {
@@ -39,7 +46,7 @@ export default function DashboardPage() {
         .from('business_profiles')
         .select('slug')
         .eq('user_id', user?.id)
-        .maybeSingle(); // Usa maybeSingle para não dar erro se não tiver
+        .maybeSingle();
       return data;
     },
     enabled: !!user,
@@ -49,7 +56,6 @@ export default function DashboardPage() {
     if (!user?.id) return;
     
     const baseUrl = window.location.origin;
-    // Se tiver slug, usa o link curto. Se não, usa o antigo.
     const url = profile?.slug 
       ? `${baseUrl}/${profile.slug}` 
       : `${baseUrl}/book/${user.id}`;
@@ -77,6 +83,16 @@ export default function DashboardPage() {
             </div>
 
             <div className="flex items-center gap-3">
+              {/* BOTÃO DE IDIOMA NOVO */}
+              <Button 
+                onClick={toggleLanguage} 
+                variant="ghost" 
+                size="sm" 
+                className="text-xs font-bold text-gray-400 hover:text-white"
+              >
+                {i18n.language === 'pt' ? '🇺🇸 EN' : '🇧🇷 PT'}
+              </Button>
+
               <Button 
                 onClick={handleShareUrl}
                 variant="outline" 
@@ -84,7 +100,7 @@ export default function DashboardPage() {
                 className="gap-2 border-primary/30 hover:bg-primary hover:text-gray-900 text-primary h-9 transition-all bg-transparent"
               >
                 <Share2 className="w-4 h-4" />
-                <span className="hidden sm:inline">Link de Agendamento</span>
+                <span className="hidden sm:inline">{t('dashboard.link_btn')}</span>
               </Button>
 
               <Button variant="ghost" onClick={logout} size="icon" className="h-9 w-9 text-gray-400 hover:text-red-400 hover:bg-red-500/10">
@@ -95,7 +111,7 @@ export default function DashboardPage() {
         </div>
       </header>
 
-      {/* ABAS */}
+      {/* ABAS (DESKTOP) */}
       <div className="hidden md:block border-b border-white/10 bg-background sticky top-[73px] z-40 print:hidden">
         <div className="container max-w-6xl mx-auto px-4">
           <div className="flex gap-8 overflow-x-auto scrollbar-hide">
@@ -160,8 +176,9 @@ export default function DashboardPage() {
                 `}
               >
                 <Icon className={`w-5 h-5 mb-1 ${isActive ? 'fill-current opacity-20' : ''}`} strokeWidth={2} />
-                <span className="text-[9px] font-medium leading-none">
-                  {tab.label === 'Visão Geral' ? 'Início' : tab.label}
+                <span className="text-[9px] font-medium leading-none text-center">
+                  {/* Lógica para encurtar nome no mobile, se necessário */}
+                  {tab.id === 'overview' ? (i18n.language === 'pt' ? 'Início' : 'Home') : tab.label}
                 </span>
               </button>
             );

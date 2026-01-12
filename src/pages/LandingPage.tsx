@@ -1,11 +1,26 @@
 import { Link } from 'react-router-dom';
 import { Scissors, Sparkles, Heart, Palette, ChevronRight, BarChart3, Calendar, CheckCircle2, Bell, TrendingUp } from 'lucide-react';
 import { Button } from '../components/ui/button';
+import { useTranslation } from 'react-i18next'; // <--- IMPORTADO
 
 export default function LandingPage() {
+  const { t, i18n } = useTranslation(); // <--- HOOK
+
+  const toggleLanguage = () => {
+    const newLang = i18n.language === 'pt' ? 'en' : 'pt';
+    i18n.changeLanguage(newLang);
+  };
+
   return (
-    <div className="min-h-screen flex flex-col font-sans bg-[#020617] text-foreground selection:bg-primary selection:text-[#020617] overflow-x-hidden">
+    <div className="min-h-screen flex flex-col font-sans bg-[#020617] text-foreground selection:bg-primary selection:text-[#020617] overflow-x-hidden relative">
       
+      {/* Botão de Idioma Flutuante */}
+      <div className="absolute top-6 right-6 z-50">
+         <button onClick={toggleLanguage} className="text-white/50 hover:text-white text-xs font-bold border border-white/10 rounded-full px-3 py-1.5 transition bg-black/20 backdrop-blur-md">
+            {i18n.language === 'pt' ? '🇺🇸 EN' : '🇧🇷 PT'}
+         </button>
+      </div>
+
       {/* --- BACKGROUND FX (Grid Pattern) --- */}
       <div className="fixed inset-0 z-0 pointer-events-none opacity-20" 
            style={{ backgroundImage: 'radial-gradient(circle at 1px 1px, #334155 1px, transparent 0)', backgroundSize: '40px 40px' }}>
@@ -21,30 +36,30 @@ export default function LandingPage() {
           
           {/* Badge Superior */}
           <div className="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-white/5 border border-white/10 text-amber-400 text-xs font-bold tracking-widest uppercase mb-4 backdrop-blur-md shadow-lg hover:bg-white/10 transition-colors cursor-default">
-            <Sparkles className="w-3 h-3 fill-current" /> Gestão Inteligente & Financeiro
+            <Sparkles className="w-3 h-3 fill-current" /> {t('landing.badge')}
           </div>
 
           {/* Título Principal */}
           <h1 className="text-5xl md:text-7xl font-extrabold tracking-tight leading-tight text-white drop-shadow-2xl">
-            Sua agenda cheia. <br/>
+            {t('landing.hero_title_1')} <br/>
             <span className="text-transparent bg-clip-text bg-gradient-to-r from-amber-200 via-orange-400 to-amber-500">
-              Seu negócio no azul.
+              {t('landing.hero_title_2')}
             </span>
           </h1>
           
           <p className="text-lg md:text-xl text-slate-300 max-w-2xl mx-auto leading-relaxed font-medium">
-            A plataforma completa para salões e clínicas eliminarem o "no-show", automatizarem o financeiro e fidelizarem clientes.
+            {t('landing.hero_subtitle')}
           </p>
 
           <div className="flex flex-col sm:flex-row items-center justify-center gap-4 pt-8">
             <Link to="/signup">
               <Button size="lg" className="h-14 px-10 text-base font-bold bg-gradient-to-r from-amber-500 to-orange-500 text-white hover:from-amber-400 hover:to-orange-400 hover:scale-105 transition-all rounded-full shadow-[0_0_40px_rgba(245,158,11,0.3)] border-0">
-                Começar Grátis Agora <ChevronRight className="ml-2 w-5 h-5" />
+                {t('landing.btn_start')} <ChevronRight className="ml-2 w-5 h-5" />
               </Button>
             </Link>
           </div>
           
-          <p className="text-xs text-slate-500 font-medium tracking-wide">TESTE GRÁTIS DE 7 DIAS • SEM CARTÃO DE CRÉDITO</p>
+          <p className="text-xs text-slate-500 font-medium tracking-wide">{t('landing.disclaimer')}</p>
         </div>
       </header>
 
@@ -62,8 +77,8 @@ export default function LandingPage() {
                     <CheckCircle2 size={20} />
                 </div>
                 <div>
-                    <p className="text-xs text-slate-400 font-medium">Novo Agendamento</p>
-                    <p className="text-sm font-bold text-white">Julia Silva confirmou</p>
+                    <p className="text-xs text-slate-400 font-medium">{t('landing.mockup_new_app')}</p>
+                    <p className="text-sm font-bold text-white">{t('landing.mockup_confirmed')}</p>
                 </div>
             </div>
 
@@ -73,8 +88,10 @@ export default function LandingPage() {
                     <TrendingUp size={20} />
                 </div>
                 <div>
-                    <p className="text-xs text-slate-400 font-medium">Receita Hoje</p>
-                    <p className="text-sm font-bold text-emerald-400">+ R$ 450,00</p>
+                    <p className="text-xs text-slate-400 font-medium">{t('landing.mockup_revenue')}</p>
+                    <p className="text-sm font-bold text-emerald-400">
+                        {i18n.language === 'en' ? '+ $ 450.00' : '+ R$ 450,00'}
+                    </p>
                 </div>
             </div>
 
@@ -143,8 +160,10 @@ export default function LandingPage() {
                                 <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/5 to-transparent -translate-x-full group-hover:translate-x-full duration-1000 transition-transform"></div>
                                 <div className="flex justify-between items-start mb-6">
                                     <div>
-                                        <p className="text-xs text-slate-400 uppercase tracking-wider font-semibold">Faturamento Semanal</p>
-                                        <h3 className="text-2xl font-bold text-white mt-1">R$ 4.250,00</h3>
+                                        <p className="text-xs text-slate-400 uppercase tracking-wider font-semibold">{t('dashboard.overview.revenue')}</p>
+                                        <h3 className="text-2xl font-bold text-white mt-1">
+                                            {i18n.language === 'en' ? '$ 4,250.00' : 'R$ 4.250,00'}
+                                        </h3>
                                     </div>
                                     <div className="text-xs text-emerald-400 bg-emerald-400/10 px-2 py-1 rounded-full font-bold">+ 12.5%</div>
                                 </div>
@@ -165,8 +184,8 @@ export default function LandingPage() {
                                     <div className="w-10 h-10 rounded-lg bg-orange-500/10 flex items-center justify-center text-orange-500 mb-4 group-hover:scale-110 transition-transform">
                                         <Calendar size={20}/>
                                     </div>
-                                    <p className="text-xs text-slate-400 font-semibold uppercase">Hoje</p>
-                                    <h3 className="text-xl font-bold text-white mt-1">8 Agendamentos</h3>
+                                    <p className="text-xs text-slate-400 font-semibold uppercase">{t('dashboard.filters.today')}</p>
+                                    <h3 className="text-xl font-bold text-white mt-1">8 {t('dashboard.overview.appointments')}</h3>
                                 </div>
                                 <div className="w-full bg-slate-700/30 rounded-full h-1.5 mt-4">
                                     <div className="bg-orange-500 h-1.5 rounded-full w-[70%] shadow-[0_0_10px_rgba(249,115,22,0.5)]"></div>
@@ -190,7 +209,7 @@ export default function LandingPage() {
                                                 <div className="h-2 w-20 bg-slate-600 rounded-full"></div>
                                             </div>
                                         </div>
-                                        <div className="px-3 py-1 rounded-full bg-emerald-500/10 text-emerald-500 text-[10px] font-bold border border-emerald-500/20">CONFIRMADO</div>
+                                        <div className="px-3 py-1 rounded-full bg-emerald-500/10 text-emerald-500 text-[10px] font-bold border border-emerald-500/20">{t('dashboard.overview.status_confirmed')}</div>
                                     </div>
                                 ))}
                             </div>
@@ -206,16 +225,16 @@ export default function LandingPage() {
       <section className="py-24 bg-[#0B1120] relative border-t border-white/5">
         <div className="container mx-auto px-4 relative z-10">
           <div className="text-center mb-16">
-            <h2 className="text-3xl md:text-4xl font-bold text-white mb-4">Feito para o <span className="text-amber-500">seu sucesso</span></h2>
-            <p className="text-slate-400 text-lg">Ferramentas adaptadas para escalar o seu negócio.</p>
+            <h2 className="text-3xl md:text-4xl font-bold text-white mb-4">{t('landing.features_title')} <span className="text-amber-500">{t('landing.features_title_highlight')}</span></h2>
+            <p className="text-slate-400 text-lg">{t('landing.features_subtitle')}</p>
           </div>
 
           <div className="grid grid-cols-2 md:grid-cols-4 gap-6 max-w-6xl mx-auto">
             {[
-              { icon: Scissors, label: "Salões de Beleza", color: "text-pink-500", bg: "bg-pink-500/10", border: "group-hover:border-pink-500/50" },
-              { icon: Palette, label: "Esmalterias", color: "text-purple-500", bg: "bg-purple-500/10", border: "group-hover:border-purple-500/50" },
-              { icon: Sparkles, label: "Clínicas de Estética", color: "text-cyan-500", bg: "bg-cyan-500/10", border: "group-hover:border-cyan-500/50" },
-              { icon: Heart, label: "Spas & Bem-estar", color: "text-emerald-500", bg: "bg-emerald-500/10", border: "group-hover:border-emerald-500/50" },
+              { icon: Scissors, label: t('landing.segment_salon'), color: "text-pink-500", bg: "bg-pink-500/10", border: "group-hover:border-pink-500/50" },
+              { icon: Palette, label: t('landing.segment_nails'), color: "text-purple-500", bg: "bg-purple-500/10", border: "group-hover:border-purple-500/50" },
+              { icon: Sparkles, label: t('landing.segment_clinic'), color: "text-cyan-500", bg: "bg-cyan-500/10", border: "group-hover:border-cyan-500/50" },
+              { icon: Heart, label: t('landing.segment_spa'), color: "text-emerald-500", bg: "bg-emerald-500/10", border: "group-hover:border-emerald-500/50" },
             ].map((item, idx) => (
               <div key={idx} className={`flex flex-col items-center text-center p-8 rounded-3xl bg-[#1e293b]/40 border border-white/5 transition-all duration-300 group cursor-default shadow-lg hover:shadow-2xl hover:-translate-y-2 ${item.border}`}>
                 <div className={`w-20 h-20 rounded-full ${item.bg} flex items-center justify-center ${item.color} mb-6 group-hover:scale-110 transition-transform duration-300 border border-white/5 shadow-inner`}>
@@ -236,14 +255,14 @@ export default function LandingPage() {
             <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-amber-400 to-orange-600 flex items-center justify-center shadow-lg shadow-orange-500/20">
               <Sparkles className="w-6 h-6 text-white" />
             </div>
-            <span className="text-2xl font-bold text-white tracking-tight">BeautyBook</span>
+            <span className="text-2xl font-bold text-white tracking-tight">{t('common.app_name')}</span>
           </div>
           <p className="text-slate-500 text-sm mb-8">
-            © 2025 BeautyBook. Tecnologia para negócios de beleza.
+            {t('landing.footer_copy')}
           </p>
           <div className="flex justify-center gap-8 text-sm font-semibold">
-            <Link to="/login" className="text-slate-400 hover:text-amber-500 transition-colors">Entrar</Link>
-            <Link to="/signup" className="text-slate-400 hover:text-amber-500 transition-colors">Criar Conta</Link>
+            <Link to="/login" className="text-slate-400 hover:text-amber-500 transition-colors">{t('auth.btn_login')}</Link>
+            <Link to="/signup" className="text-slate-400 hover:text-amber-500 transition-colors">{t('auth.btn_signup')}</Link>
           </div>
         </div>
       </footer>

@@ -1,12 +1,13 @@
 import { useState, useEffect } from 'react';
 import { format, parseISO, addDays, startOfWeek, endOfWeek } from 'date-fns';
-import { ptBR } from 'date-fns/locale';
+import { ptBR, enUS } from 'date-fns/locale';
 import { Calendar as CalendarIcon, Clock, CheckCircle, XCircle, PlayCircle, User as UserIcon } from 'lucide-react';
 import { Card } from '../ui/card';
 import { Button } from '../ui/button';
 import { supabase } from '../../lib/supabase';
 import { useAuth } from '../../hooks/useAuth';
 import { toast } from 'sonner';
+import { useTranslation } from 'react-i18next'; // <---
 
 // Componente de Seleção de Período
 function RangeCalendar({ 
@@ -22,20 +23,21 @@ function RangeCalendar({
   onEndChange: (d: string) => void,
   onQuickSelect: (type: 'today' | 'week') => void
 }) {
+  const { t } = useTranslation();
   return (
     <div className="p-4 bg-white rounded-xl border shadow-sm space-y-4">
       <div className="flex gap-2 mb-2">
         <Button variant="outline" size="sm" className="flex-1" onClick={() => onQuickSelect('today')}>
-          Hoje
+          {t('dashboard.calendar.today')}
         </Button>
         <Button variant="outline" size="sm" className="flex-1" onClick={() => onQuickSelect('week')}>
-          Semana
+          {t('dashboard.calendar.week')}
         </Button>
       </div>
       
       <div className="grid grid-cols-2 gap-2">
         <div>
-          <label className="block text-xs font-medium text-muted-foreground mb-1">De</label>
+          <label className="block text-xs font-medium text-muted-foreground mb-1">{t('dashboard.calendar.from')}</label>
           <input 
             type="date" 
             value={startDate}
@@ -44,7 +46,7 @@ function RangeCalendar({
           />
         </div>
         <div>
-          <label className="block text-xs font-medium text-muted-foreground mb-1">Até</label>
+          <label className="block text-xs font-medium text-muted-foreground mb-1">{t('dashboard.calendar.to')}</label>
           <input 
             type="date" 
             value={endDate}
@@ -59,6 +61,7 @@ function RangeCalendar({
 
 export default function CalendarView() {
   const { user } = useAuth();
+  const { t, i18n } = useTranslation(); // <---
   
   const [startDate, setStartDate] = useState(format(new Date(), 'yyyy-MM-dd'));
   const [endDate, setEndDate] = useState(format(addDays(new Date(), 6), 'yyyy-MM-dd')); 
@@ -66,12 +69,12 @@ export default function CalendarView() {
   const [appointments, setAppointments] = useState<any[]>([]);
   const [loading, setLoading] = useState(false);
 
+  const dateLocale = i18n.language === 'en' ? enUS : ptBR;
+
   const fetchAppointments = async () => {
     if (!user) return;
     setLoading(true);
     
-    const endDateTime = `${endDate}T23:59:59`;
-
     const { data, error } = await supabase
       .from('appointments')
       .select(`
@@ -92,7 +95,7 @@ export default function CalendarView() {
 
     if (error) {
       console.error(error);
-      toast.error('Erro ao carregar agenda');
+      toast.error(t('auth.error_generic'));
     } else {
       setAppointments(data || []);
     }
@@ -122,9 +125,9 @@ export default function CalendarView() {
       .eq('id', id);
 
     if (error) {
-      toast.error('Erro ao atualizar status');
+      toast.error(t('auth.error_generic'));
     } else {
-      toast.success('Status atualizado com sucesso!');
+      toast.success(t('common.save'));
       fetchAppointments(); 
     }
   };
@@ -142,20 +145,20 @@ export default function CalendarView() {
         />
         
         <Card className="p-4 bg-primary/5 border-primary/20">
-          <h3 className="font-semibold text-primary mb-2">Resumo do Período</h3>
+          <h3 className="font-semibold text-primary mb-2">{t('dashboard.calendar.summary')}</h3>
           <div className="space-y-2 text-sm">
             <div className="flex justify-between">
-              <span>Total:</span>
+              <span>{t('dashboard.calendar.total')}:</span>
               <span className="font-bold">{appointments.length}</span>
             </div>
             <div className="flex justify-between">
-              <span>Pendentes:</span>
+              <span>{t('dashboard.overview.pending')}:</span>
               <span className="font-bold text-yellow-600">
                 {appointments.filter(a => a.status === 'pending').length}
               </span>
             </div>
             <div className="flex justify-between">
-              <span>Confirmados:</span>
+              <span>{t('dashboard.overview.confirmed')}:</span>
               <span className="font-bold text-green-600">
                 {appointments.filter(a => a.status === 'confirmed').length}
               </span>
@@ -167,17 +170,17 @@ export default function CalendarView() {
       <div className="space-y-4">
         <div className="flex items-center justify-between">
           <h2 className="text-2xl font-display font-bold">
-            Agenda
+            {t('dashboard.calendar.title')}
           </h2>
           <Button variant="outline" size="sm" onClick={fetchAppointments} disabled={loading}>
-            {loading ? 'Carregando...' : 'Atualizar'}
+            {loading ? t('common.loading') : t('common.update')}
           </Button>
         </div>
 
         {appointments.length === 0 ? (
           <div className="flex flex-col items-center justify-center py-12 text-muted-foreground bg-white/50 rounded-xl border border-dashed">
             <CalendarIcon className="w-12 h-12 mb-4 opacity-50" />
-            <p>Nenhum agendamento encontrado neste período.</p>
+            <p>{t('dashboard.calendar.no_appointments')}</p>
           </div>
         ) : (
           <div className="space-y-3">
@@ -187,7 +190,7 @@ export default function CalendarView() {
                 <div className="flex gap-4">
                   <div className="flex flex-col items-center justify-center px-3 py-2 bg-muted rounded-lg min-w-[90px] text-center">
                     <span className="text-xs font-bold uppercase text-muted-foreground">
-                      {format(parseISO(app.appointment_date), 'dd MMM', { locale: ptBR })}
+                      {format(parseISO(app.appointment_date), 'dd MMM', { locale: dateLocale })}
                     </span>
                     <span className="text-xl font-bold text-foreground">
                       {app.appointment_time.slice(0, 5)}
@@ -199,7 +202,7 @@ export default function CalendarView() {
                       ${app.status === 'cancelled' ? 'bg-red-100 text-red-700' : ''}
                       ${app.status === 'no_show' ? 'bg-red-100 text-red-700' : ''}
                     `}>
-                      {app.status === 'no_show' ? 'Faltou' : app.status}
+                      {app.status === 'no_show' ? t('dashboard.overview.status_noshow') : app.status}
                     </span>
                   </div>
 
@@ -211,17 +214,16 @@ export default function CalendarView() {
                       </span>
                       <span>•</span>
                       
-                      {/* NOME DO PROFISSIONAL */}
                       <span className="flex items-center gap-1 text-primary font-medium bg-primary/10 px-1.5 py-0.5 rounded text-xs">
                          <UserIcon className="w-3 h-3" />
-                         {app.professionals?.name || 'Sem Profissional'}
+                         {app.professionals?.name || t('booking.no_prof')}
                       </span>
                       
                       <span>•</span>
                       <span>{app.services?.duration_minutes} min</span>
                       <span>•</span>
                       <span className="text-foreground font-medium">
-                        {app.services?.price ? `R$ ${app.services.price}` : '-'}
+                        {app.services?.price ? new Intl.NumberFormat(i18n.language === 'en' ? 'en-US' : 'pt-BR', { style: 'currency', currency: i18n.language === 'en' ? 'USD' : 'BRL' }).format(app.services.price) : '-'}
                       </span>
                     </div>
                   </div>
@@ -234,7 +236,7 @@ export default function CalendarView() {
                       className="bg-green-600 hover:bg-green-700 text-white flex-1 md:flex-none"
                       onClick={() => updateStatus(app.id, 'confirmed')}
                     >
-                      <CheckCircle className="w-4 h-4 mr-2" /> Confirmar
+                      <CheckCircle className="w-4 h-4 mr-2" /> {t('dashboard.overview.btn_confirm')}
                     </Button>
                   )}
 

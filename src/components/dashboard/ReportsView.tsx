@@ -7,6 +7,7 @@ import { Card } from '../ui/card';
 import { Input } from '../ui/input';
 import { Printer, Download, Filter, DollarSign, CheckCircle, Clock } from 'lucide-react';
 import { toast } from 'sonner';
+import { useTranslation } from 'react-i18next';
 
 interface ReportItem {
   id: string;
@@ -21,38 +22,31 @@ interface ReportItem {
 
 export default function ReportsView() {
   const { user } = useAuth();
+  const { t, i18n } = useTranslation();
   const [loading, setLoading] = useState(false);
   const [data, setData] = useState<ReportItem[]>([]);
   
-  // Estado das datas (Padrão: Mês atual)
   const [startDate, setStartDate] = useState(format(startOfMonth(new Date()), 'yyyy-MM-dd'));
   const [endDate, setEndDate] = useState(format(endOfMonth(new Date()), 'yyyy-MM-dd'));
 
-  // Estado do Filtro da Tabela (Abas)
   const [viewMode, setViewMode] = useState<'all' | 'realized' | 'forecast'>('all');
 
-  // --- CÁLCULOS FINANCEIROS ---
-  // 1. Valor Recebido: Soma apenas o que está "Concluído/Finalizado"
   const realizedRevenue = data
     .filter(item => item.status === 'completed')
     .reduce((acc, item) => acc + (item.price || 0), 0);
 
-  // 2. Previsão: Soma o que está "Confirmado" ou "Pendente"
   const forecastRevenue = data
     .filter(item => item.status === 'confirmed' || item.status === 'pending')
     .reduce((acc, item) => acc + (item.price || 0), 0);
 
-  // 3. Contagem de Atendimentos Realizados
   const completedCount = data.filter(item => item.status === 'completed').length;
 
-  // Filtra os dados da tabela visualmente conforme a aba selecionada
   const filteredData = data.filter(item => {
     if (viewMode === 'realized') return item.status === 'completed';
     if (viewMode === 'forecast') return item.status === 'confirmed' || item.status === 'pending';
-    return true; // 'all' mostra tudo (incluindo cancelados e no-show no histórico)
+    return true; 
   });
 
-  // Função de Busca
   const fetchReport = async () => {
     setLoading(true);
     try {
@@ -75,7 +69,6 @@ export default function ReportsView() {
 
       if (error) throw error;
 
-      // Formata os dados
       const formattedData = appointments.map((app: any) => ({
         id: app.id,
         appointment_date: app.appointment_date,
@@ -89,7 +82,7 @@ export default function ReportsView() {
 
       setData(formattedData);
     } catch (error: any) {
-      toast.error('Erro ao gerar relatório');
+      toast.error(t('auth.error_generic'));
       console.error(error);
     } finally {
       setLoading(false);
@@ -116,10 +109,10 @@ export default function ReportsView() {
   };
 
   const handleExportCSV = () => {
-    const headers = ['Data', 'Hora', 'Cliente', 'Serviço', 'Profissional', 'Valor', 'Status'];
+    const headers = [t('dashboard.financial.col_date'), 'Hora', t('dashboard.financial.col_client'), t('dashboard.financial.col_service'), 'Profissional', t('dashboard.financial.col_value'), 'Status'];
     const csvContent = [
       headers.join(','),
-      ...filteredData.map(item => [ // Exporta o que está filtrado na tela
+      ...filteredData.map(item => [ 
         format(parseISO(item.appointment_date), 'dd/MM/yyyy'),
         item.appointment_time.slice(0, 5),
         `"${item.client_name}"`, 
@@ -142,15 +135,18 @@ export default function ReportsView() {
     window.print();
   };
 
+  const formatMoney = (value: number) => {
+    return new Intl.NumberFormat(i18n.language === 'en' ? 'en-US' : 'pt-BR', { style: 'currency', currency: i18n.language === 'en' ? 'USD' : 'BRL' }).format(value);
+  }
+
   return (
     <div className="space-y-6 animate-fade-in print:p-0 print:bg-white">
       
-      {/* --- CABEÇALHO E FILTROS DE DATA --- */}
       <div className="print:hidden space-y-4">
         <div className="flex flex-col md:flex-row gap-4 justify-between items-start md:items-center">
           <div>
-            <h2 className="text-2xl font-display font-bold">Relatório Financeiro</h2>
-            <p className="text-muted-foreground">Analise o desempenho e faturamento.</p>
+            <h2 className="text-2xl font-display font-bold">{t('dashboard.financial.title')}</h2>
+            <p className="text-muted-foreground">{t('dashboard.financial.subtitle')}</p>
           </div>
           <div className="flex gap-2">
             <Button variant="outline" onClick={handleExportCSV}>
@@ -167,18 +163,18 @@ export default function ReportsView() {
         <Card className="p-4 bg-white/50 backdrop-blur-sm">
           <div className="flex flex-col md:flex-row gap-4 items-end">
             <div className="flex-1 w-full grid grid-cols-3 gap-2">
-              <Button variant="ghost" size="sm" onClick={() => setFilterDate('today')} className="border">Hoje</Button>
-              <Button variant="ghost" size="sm" onClick={() => setFilterDate('week')} className="border">Esta Semana</Button>
-              <Button variant="ghost" size="sm" onClick={() => setFilterDate('month')} className="border">Este Mês</Button>
+              <Button variant="ghost" size="sm" onClick={() => setFilterDate('today')} className="border">{t('dashboard.filters.today')}</Button>
+              <Button variant="ghost" size="sm" onClick={() => setFilterDate('week')} className="border">{t('dashboard.filters.week')}</Button>
+              <Button variant="ghost" size="sm" onClick={() => setFilterDate('month')} className="border">{t('dashboard.filters.month')}</Button>
             </div>
             
             <div className="flex gap-2 items-center w-full md:w-auto">
               <div className="grid gap-1.5 flex-1">
-                <span className="text-xs font-medium">De</span>
+                <span className="text-xs font-medium">{t('dashboard.calendar.from')}</span>
                 <Input type="date" value={startDate} onChange={(e) => setStartDate(e.target.value)} />
               </div>
               <div className="grid gap-1.5 flex-1">
-                <span className="text-xs font-medium">Até</span>
+                <span className="text-xs font-medium">{t('dashboard.calendar.to')}</span>
                 <Input type="date" value={endDate} onChange={(e) => setEndDate(e.target.value)} />
               </div>
             </div>
@@ -186,18 +182,12 @@ export default function ReportsView() {
         </Card>
       </div>
 
-      {/* --- CARDS DE FATURAMENTO (SEPARADOS) --- */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-        
-        {/* CARD 1: VALOR RECEBIDO (REALIZADO) */}
         <Card className="p-4 flex flex-col justify-between border-l-4 border-l-green-500 shadow-sm">
           <div className="flex justify-between items-start">
             <div>
-              <p className="text-xs text-muted-foreground uppercase font-bold tracking-wider">Valor Recebido</p>
-              <p className="text-[10px] text-gray-400 mb-1">(Serviços Finalizados)</p>
-              <h3 className="text-2xl font-bold mt-1 text-green-600">
-                {new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(realizedRevenue)}
-              </h3>
+              <p className="text-xs text-muted-foreground uppercase font-bold tracking-wider">{t('dashboard.financial.card_realized')}</p>
+              <h3 className="text-2xl font-bold mt-1 text-green-600">{formatMoney(realizedRevenue)}</h3>
             </div>
             <div className="p-2 bg-green-100 rounded-full">
               <DollarSign className="w-5 h-5 text-green-600" />
@@ -205,15 +195,11 @@ export default function ReportsView() {
           </div>
         </Card>
 
-        {/* CARD 2: PREVISÃO (FUTURO) */}
         <Card className="p-4 flex flex-col justify-between border-l-4 border-l-blue-500 shadow-sm">
           <div className="flex justify-between items-start">
             <div>
-              <p className="text-xs text-muted-foreground uppercase font-bold tracking-wider">Previsão</p>
-              <p className="text-[10px] text-gray-400 mb-1">(Agendados/Pendentes)</p>
-              <h3 className="text-2xl font-bold mt-1 text-blue-600">
-                {new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(forecastRevenue)}
-              </h3>
+              <p className="text-xs text-muted-foreground uppercase font-bold tracking-wider">{t('dashboard.financial.card_forecast')}</p>
+              <h3 className="text-2xl font-bold mt-1 text-blue-600">{formatMoney(forecastRevenue)}</h3>
             </div>
             <div className="p-2 bg-blue-100 rounded-full">
               <Clock className="w-5 h-5 text-blue-600" />
@@ -221,15 +207,11 @@ export default function ReportsView() {
           </div>
         </Card>
 
-        {/* CARD 3: VOLUME */}
         <Card className="p-4 flex flex-col justify-between border-l-4 border-l-gray-500 shadow-sm">
           <div className="flex justify-between items-start">
             <div>
-              <p className="text-xs text-muted-foreground uppercase font-bold tracking-wider">Serviços Realizados</p>
-              <p className="text-[10px] text-gray-400 mb-1">(Quantidade)</p>
-              <h3 className="text-2xl font-bold mt-1 text-gray-700">
-                {completedCount}
-              </h3>
+              <p className="text-xs text-muted-foreground uppercase font-bold tracking-wider">{t('dashboard.financial.card_volume')}</p>
+              <h3 className="text-2xl font-bold mt-1 text-gray-700">{completedCount}</h3>
             </div>
             <div className="p-2 bg-gray-100 rounded-full">
               <CheckCircle className="w-5 h-5 text-gray-600" />
@@ -238,64 +220,44 @@ export default function ReportsView() {
         </Card>
       </div>
 
-      {/* --- TABELA COM ABAS DE FILTRO --- */}
       <Card className="overflow-hidden print:shadow-none print:border-none">
         
-        {/* Cabeçalho da Tabela e Abas */}
         <div className="p-4 border-b bg-muted/30 flex flex-col sm:flex-row justify-between items-center gap-4 print:hidden">
           <h3 className="font-semibold flex items-center gap-2">
             <Filter className="w-4 h-4" />
-            Extrato de Serviços
+            Extrato
           </h3>
           
           <div className="flex p-1 bg-white border rounded-lg">
-            <button 
-              onClick={() => setViewMode('all')}
-              className={`px-3 py-1.5 text-xs font-medium rounded-md transition-all ${viewMode === 'all' ? 'bg-gray-900 text-white shadow' : 'text-gray-500 hover:text-gray-900'}`}
-            >
-              Todos
-            </button>
-            <button 
-              onClick={() => setViewMode('realized')}
-              className={`px-3 py-1.5 text-xs font-medium rounded-md transition-all ${viewMode === 'realized' ? 'bg-green-600 text-white shadow' : 'text-gray-500 hover:text-green-600'}`}
-            >
-              Realizados
-            </button>
-            <button 
-              onClick={() => setViewMode('forecast')}
-              className={`px-3 py-1.5 text-xs font-medium rounded-md transition-all ${viewMode === 'forecast' ? 'bg-blue-600 text-white shadow' : 'text-gray-500 hover:text-blue-600'}`}
-            >
-              A Receber
-            </button>
+            <button onClick={() => setViewMode('all')} className={`px-3 py-1.5 text-xs font-medium rounded-md transition-all ${viewMode === 'all' ? 'bg-gray-900 text-white shadow' : 'text-gray-500 hover:text-gray-900'}`}>{t('dashboard.financial.filter_all')}</button>
+            <button onClick={() => setViewMode('realized')} className={`px-3 py-1.5 text-xs font-medium rounded-md transition-all ${viewMode === 'realized' ? 'bg-green-600 text-white shadow' : 'text-gray-500 hover:text-green-600'}`}>{t('dashboard.financial.filter_realized')}</button>
+            <button onClick={() => setViewMode('forecast')} className={`px-3 py-1.5 text-xs font-medium rounded-md transition-all ${viewMode === 'forecast' ? 'bg-blue-600 text-white shadow' : 'text-gray-500 hover:text-blue-600'}`}>{t('dashboard.financial.filter_forecast')}</button>
           </div>
         </div>
         
-        {/* Cabeçalho para Impressão */}
         <div className="hidden print:block mb-6 text-center pt-4">
-          <h1 className="text-xl font-bold">Relatório Financeiro Detalhado</h1>
-          <p className="text-sm text-gray-500">
-            Período: {format(parseISO(startDate), 'dd/MM/yyyy')} à {format(parseISO(endDate), 'dd/MM/yyyy')}
-          </p>
+          <h1 className="text-xl font-bold">{t('dashboard.financial.title')}</h1>
+          <p className="text-sm text-gray-500">Período: {format(parseISO(startDate), 'dd/MM/yyyy')} - {format(parseISO(endDate), 'dd/MM/yyyy')}</p>
         </div>
 
         <div className="overflow-x-auto">
           <table className="w-full text-sm text-left">
             <thead className="text-xs text-muted-foreground uppercase bg-muted/50">
               <tr>
-                <th className="px-4 py-3">Data</th>
+                <th className="px-4 py-3">{t('dashboard.financial.col_date')}</th>
                 <th className="px-4 py-3">Hora</th>
-                <th className="px-4 py-3">Cliente</th>
-                <th className="px-4 py-3">Serviço</th>
+                <th className="px-4 py-3">{t('dashboard.financial.col_client')}</th>
+                <th className="px-4 py-3">{t('dashboard.financial.col_service')}</th>
                 <th className="px-4 py-3 text-primary">Profissional</th>
-                <th className="px-4 py-3">Valor</th>
-                <th className="px-4 py-3">Status</th>
+                <th className="px-4 py-3">{t('dashboard.financial.col_value')}</th>
+                <th className="px-4 py-3">{t('dashboard.financial.col_status')}</th>
               </tr>
             </thead>
             <tbody className="divide-y">
               {filteredData.length === 0 ? (
                 <tr>
                   <td colSpan={7} className="px-4 py-12 text-center text-muted-foreground">
-                    Nenhum registro encontrado com este filtro.
+                    Nenhum registro.
                   </td>
                 </tr>
               ) : (
@@ -313,7 +275,7 @@ export default function ReportsView() {
                         {item.professional_name}
                     </td>
                     <td className="px-4 py-3 font-bold text-gray-700">
-                      {new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(item.price)}
+                      {formatMoney(item.price)}
                     </td>
                     <td className="px-4 py-3">
                       <span className={`
@@ -324,11 +286,7 @@ export default function ReportsView() {
                         ${item.status === 'no_show' ? 'bg-red-50 text-red-700 border-red-200' : ''}
                         ${item.status === 'completed' ? 'bg-green-50 text-green-700 border-green-200' : ''}
                       `}>
-                        {item.status === 'confirmed' && 'Confirmado'}
-                        {item.status === 'pending' && 'Pendente'}
-                        {item.status === 'cancelled' && 'Cancelado'}
-                        {item.status === 'no_show' && 'Faltou'}
-                        {item.status === 'completed' && 'Realizado'}
+                        {item.status}
                       </span>
                     </td>
                   </tr>
@@ -338,10 +296,6 @@ export default function ReportsView() {
           </table>
         </div>
       </Card>
-      
-      <div className="hidden print:block mt-8 text-center text-xs text-gray-400">
-        Gerado automaticamente pelo sistema BeautyBook em {format(new Date(), 'dd/MM/yyyy HH:mm')}
-      </div>
     </div>
   );
 }

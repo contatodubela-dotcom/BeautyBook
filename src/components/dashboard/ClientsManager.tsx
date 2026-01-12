@@ -7,9 +7,11 @@ import { Input } from '../ui/input';
 import { Ban, Search, UserX } from 'lucide-react';
 import { toast } from 'sonner';
 import { useState } from 'react';
+import { useTranslation } from 'react-i18next'; // <---
 
 export default function ClientsManager() {
   const { user } = useAuth();
+  const { t } = useTranslation(); // <---
   const queryClient = useQueryClient();
   const [searchTerm, setSearchTerm] = useState('');
 
@@ -113,14 +115,14 @@ export default function ClientsManager() {
   return (
     <div className="space-y-6 animate-fade-in">
       <div>
-        <h2 className="text-2xl font-display font-bold mb-1">Clientes</h2>
-        <p className="text-muted-foreground">Gerencie seus clientes e bloqueios</p>
+        <h2 className="text-2xl font-display font-bold mb-1">{t('dashboard.clients.title')}</h2>
+        <p className="text-muted-foreground">{t('dashboard.clients.subtitle')}</p>
       </div>
 
       <div className="relative">
         <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
         <Input
-          placeholder="Buscar por nome ou telefone..."
+          placeholder={t('common.search_placeholder')}
           value={searchTerm}
           onChange={(e) => setSearchTerm(e.target.value)}
           className="pl-10"
@@ -132,7 +134,7 @@ export default function ClientsManager() {
         <Card className="p-6 bg-destructive/5 border-destructive/20">
           <h3 className="text-lg font-semibold mb-4 flex items-center gap-2 text-destructive">
             <UserX className="w-5 h-5" />
-            Clientes Bloqueados ({blockedClients.length})
+            {t('dashboard.clients.blocked_title')} ({blockedClients.length})
           </h3>
           <div className="space-y-3">
             {blockedClients.map((bc: any) => (
@@ -145,7 +147,7 @@ export default function ClientsManager() {
                   <p className="text-sm text-muted-foreground">{bc.clients.phone}</p>
                   <p className="text-xs text-destructive mt-1">
                     {bc.no_show_count} falta(s) • Bloqueado em{' '}
-                    {new Date(bc.blocked_at).toLocaleDateString('pt-BR')}
+                    {new Date(bc.blocked_at).toLocaleDateString()}
                   </p>
                 </div>
                 <Button
@@ -153,7 +155,7 @@ export default function ClientsManager() {
                   variant="outline"
                   onClick={() => unblockMutation.mutate(bc.client_id)}
                 >
-                  Desbloquear
+                  {t('dashboard.clients.btn_unblock')}
                 </Button>
               </div>
             ))}
@@ -180,15 +182,15 @@ export default function ClientsManager() {
 
               <div className="grid grid-cols-3 gap-2 text-center text-sm mb-3">
                 <div>
-                  <p className="text-muted-foreground text-xs">Total</p>
+                  <p className="text-muted-foreground text-xs">{t('dashboard.clients.stats_total')}</p>
                   <p className="font-semibold">{client.total_appointments}</p>
                 </div>
                 <div>
-                  <p className="text-muted-foreground text-xs">Confirmados</p>
+                  <p className="text-muted-foreground text-xs">{t('dashboard.clients.stats_confirmed')}</p>
                   <p className="font-semibold text-success">{client.confirmed}</p>
                 </div>
                 <div>
-                  <p className="text-muted-foreground text-xs">Faltas</p>
+                  <p className="text-muted-foreground text-xs">{t('dashboard.clients.stats_noshow')}</p>
                   <p className="font-semibold text-destructive">{client.no_shows}</p>
                 </div>
               </div>
@@ -204,7 +206,7 @@ export default function ClientsManager() {
                   })}
                 >
                   <Ban className="w-4 h-4 mr-2" />
-                  Bloquear Cliente
+                  {t('dashboard.clients.btn_block')}
                 </Button>
               )}
             </Card>
@@ -214,7 +216,7 @@ export default function ClientsManager() {
         {(!filteredClients || filteredClients.length === 0) && (
           <Card className="p-8 col-span-full">
             <p className="text-center text-muted-foreground">
-              Nenhum cliente encontrado
+              {t('dashboard.clients.empty')}
             </p>
           </Card>
         )}

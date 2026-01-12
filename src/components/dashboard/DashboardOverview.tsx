@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { format, parseISO } from 'date-fns';
-import { ptBR } from 'date-fns/locale';
+import { ptBR, enUS } from 'date-fns/locale';
 import { 
   Calendar, 
   CheckCircle, 
@@ -15,9 +15,11 @@ import { Button } from '../ui/button';
 import { supabase } from '../../lib/supabase';
 import { useAuth } from '../../hooks/useAuth';
 import { toast } from 'sonner';
+import { useTranslation } from 'react-i18next';
 
 export default function DashboardOverview() {
   const { user } = useAuth();
+  const { t, i18n } = useTranslation();
   const [loading, setLoading] = useState(true);
   const [stats, setStats] = useState({
     todayCount: 0,
@@ -27,6 +29,9 @@ export default function DashboardOverview() {
   });
   const [todayAppointments, setTodayAppointments] = useState<any[]>([]);
   const [pendingAppointments, setPendingAppointments] = useState<any[]>([]);
+
+  // Locale dinâmico para datas
+  const dateLocale = i18n.language === 'en' ? enUS : ptBR;
 
   const fetchData = async () => {
     try {
@@ -83,19 +88,22 @@ export default function DashboardOverview() {
 
       if (error) throw error;
 
-      toast.success('Status atualizado com sucesso.');
+      toast.success(t('common.update') + '!');
       fetchData();
     } catch (error) {
-      toast.error('Erro ao atualizar.');
+      toast.error(t('auth.error_generic'));
     }
   };
 
   const handleReschedule = (phone: string, clientName: string) => {
     if (!phone) {
-      toast.error('Cliente sem telefone cadastrado');
+      toast.error('Cliente sem telefone');
       return;
     }
-    const message = `Oi ${clientName}, precisamos reagendar seu horário. Qual a melhor data para você?`;
+    const message = i18n.language === 'pt' 
+        ? `Oi ${clientName}, precisamos reagendar seu horário. Qual a melhor data para você?`
+        : `Hi ${clientName}, we need to reschedule your appointment. What date works best for you?`;
+    
     const url = `https://wa.me/55${phone.replace(/\D/g, '')}?text=${encodeURIComponent(message)}`;
     window.open(url, '_blank');
   };
@@ -107,7 +115,7 @@ export default function DashboardOverview() {
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
         <Card className="p-4 space-y-2 bg-card border border-white/5 border-l-4 border-l-primary shadow-lg">
           <div className="flex items-center justify-between text-gray-400">
-            <span className="text-xs font-medium uppercase tracking-wider">Hoje</span>
+            <span className="text-xs font-medium uppercase tracking-wider">{t('dashboard.overview.today')}</span>
             <Calendar className="w-4 h-4" />
           </div>
           <div className="text-2xl font-bold text-white">{stats.todayCount}</div>
@@ -115,7 +123,7 @@ export default function DashboardOverview() {
         
         <Card className="p-4 space-y-2 bg-card border border-white/5 border-l-4 border-l-yellow-500 shadow-lg">
           <div className="flex items-center justify-between text-gray-400">
-            <span className="text-xs font-medium uppercase tracking-wider">Pendentes</span>
+            <span className="text-xs font-medium uppercase tracking-wider">{t('dashboard.overview.pending')}</span>
             <Bell className="w-4 h-4 text-yellow-500" />
           </div>
           <div className="text-2xl font-bold text-yellow-500">{pendingAppointments.length}</div>
@@ -123,7 +131,7 @@ export default function DashboardOverview() {
 
         <Card className="p-4 space-y-2 bg-card border border-white/5 border-l-4 border-l-green-500 shadow-lg">
           <div className="flex items-center justify-between text-gray-400">
-            <span className="text-xs font-medium uppercase tracking-wider">Confirmados</span>
+            <span className="text-xs font-medium uppercase tracking-wider">{t('dashboard.overview.confirmed')}</span>
             <CheckCircle className="w-4 h-4 text-green-500" />
           </div>
           <div className="text-2xl font-bold text-green-500">{stats.confirmedCount}</div>
@@ -131,7 +139,7 @@ export default function DashboardOverview() {
 
         <Card className="p-4 space-y-2 bg-card border border-white/5 border-l-4 border-l-red-500 shadow-lg">
           <div className="flex items-center justify-between text-gray-400">
-            <span className="text-xs font-medium uppercase tracking-wider">No-Show</span>
+            <span className="text-xs font-medium uppercase tracking-wider">{t('dashboard.overview.noshow')}</span>
             <XCircle className="w-4 h-4 text-red-500" />
           </div>
           <div className="text-2xl font-bold text-red-400">{stats.noShowCount}</div>
@@ -145,11 +153,11 @@ export default function DashboardOverview() {
           <div className="flex items-center justify-between">
             <h2 className="text-lg font-bold flex items-center gap-2 text-white">
               <Bell className="w-5 h-5 text-yellow-500" />
-              Solicitações Pendentes
+              {t('dashboard.overview.title_pending')}
             </h2>
             {pendingAppointments.length > 0 && (
               <span className="text-[10px] font-bold px-2 py-1 bg-yellow-500/20 text-yellow-500 rounded-full border border-yellow-500/30">
-                {pendingAppointments.length} NOVOS
+                {pendingAppointments.length} {t('dashboard.overview.new_badge')}
               </span>
             )}
           </div>
@@ -157,7 +165,7 @@ export default function DashboardOverview() {
           {pendingAppointments.length === 0 ? (
             <Card className="p-8 text-center bg-card border border-dashed border-white/10 rounded-xl">
               <CheckCircle className="w-10 h-10 mx-auto mb-3 text-green-500/20" />
-              <p className="text-sm text-gray-400">Tudo em dia! Nenhuma solicitação pendente.</p>
+              <p className="text-sm text-gray-400">{t('dashboard.overview.no_pending')}</p>
             </Card>
           ) : (
             <div className="space-y-3">
@@ -169,7 +177,7 @@ export default function DashboardOverview() {
                       <div className="flex items-center gap-2 text-xs text-gray-400 mt-1">
                         <Calendar className="w-3 h-3" />
                         <span className="capitalize">
-                          {format(parseISO(app.appointment_date), "EEE, dd MMM", { locale: ptBR })}
+                          {format(parseISO(app.appointment_date), "EEE, dd MMM", { locale: dateLocale })}
                         </span>
                         <span>•</span>
                         <Clock className="w-3 h-3" />
@@ -179,7 +187,7 @@ export default function DashboardOverview() {
                         {app.services?.name}
                         {app.professionals?.name && (
                             <span className="text-gray-400 font-normal ml-1">
-                                com {app.professionals.name.split(' ')[0]}
+                                / {app.professionals.name.split(' ')[0]}
                             </span>
                         )}
                       </p>
@@ -191,7 +199,7 @@ export default function DashboardOverview() {
                       className="w-full bg-green-600 hover:bg-green-700 text-white border-0"
                       onClick={() => updateStatus(app.id, 'confirmed')}
                     >
-                      Confirmar
+                      {t('dashboard.overview.btn_confirm')}
                     </Button>
                     <Button 
                       size="sm" 
@@ -199,7 +207,7 @@ export default function DashboardOverview() {
                       className="w-full text-red-400 border-red-900/30 hover:bg-red-950/30 hover:text-red-300"
                       onClick={() => handleReschedule(app.clients?.phone, app.clients?.name)}
                     >
-                      Reagendar
+                      {t('dashboard.overview.btn_reschedule')}
                     </Button>
                   </div>
                 </Card>
@@ -212,12 +220,12 @@ export default function DashboardOverview() {
         <div className="space-y-4">
           <h2 className="text-lg font-bold flex items-center gap-2 text-white">
             <Clock className="w-5 h-5 text-primary" />
-            Agenda de Hoje
+            {t('dashboard.overview.title_today')}
           </h2>
 
           {todayAppointments.length === 0 ? (
             <Card className="p-8 text-center bg-card border border-dashed border-white/10 rounded-xl">
-              <p className="text-sm text-gray-400">Agenda livre para hoje.</p>
+              <p className="text-sm text-gray-400">{t('dashboard.overview.no_today')}</p>
             </Card>
           ) : (
             <div className="space-y-3">
@@ -257,7 +265,7 @@ export default function DashboardOverview() {
                         <Button
                           size="icon"
                           variant="ghost"
-                          title="Faltou"
+                          title={t('dashboard.overview.status_noshow')}
                           className="h-8 w-8 text-red-400 hover:text-red-300 hover:bg-red-500/10"
                           onClick={() => updateStatus(app.id, 'no_show')}
                         >
