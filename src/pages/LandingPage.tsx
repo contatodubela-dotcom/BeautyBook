@@ -1,268 +1,583 @@
 import { Link } from 'react-router-dom';
-import { Scissors, Sparkles, Heart, Palette, ChevronRight, BarChart3, Calendar, CheckCircle2, Bell, TrendingUp } from 'lucide-react';
-import { Button } from '../components/ui/button';
-import { useTranslation } from 'react-i18next'; // <--- IMPORTADO
+import { 
+  Calendar, CheckCircle, Clock, DollarSign, 
+  Menu, X, Star, AlertCircle, Smartphone,
+  User, Briefcase, Brain, Scissors, Dumbbell, Globe,
+  Layout, XCircle, TrendingUp, Bell, Share2, MousePointerClick
+} from 'lucide-react';
+import { useState } from 'react';
+import { motion } from 'framer-motion';
+import { useTranslation } from 'react-i18next';
 
 export default function LandingPage() {
-  const { t, i18n } = useTranslation(); // <--- HOOK
+  const { t, i18n } = useTranslation();
+  const [isMenuOpen, setIsMenuOpen] = useState(false);
 
-  const toggleLanguage = () => {
-    const newLang = i18n.language === 'pt' ? 'en' : 'pt';
-    i18n.changeLanguage(newLang);
+  const scrollToSection = (id: string) => {
+    const element = document.getElementById(id);
+    if (element) {
+      element.scrollIntoView({ behavior: 'smooth' });
+    }
+    setIsMenuOpen(false);
   };
 
-  return (
-    <div className="min-h-screen flex flex-col font-sans bg-[#020617] text-foreground selection:bg-primary selection:text-[#020617] overflow-x-hidden relative">
-      
-      {/* Botão de Idioma Flutuante */}
-      <div className="absolute top-6 right-6 z-50">
-         <button onClick={toggleLanguage} className="text-white/50 hover:text-white text-xs font-bold border border-white/10 rounded-full px-3 py-1.5 transition bg-black/20 backdrop-blur-md">
-            {i18n.language === 'pt' ? '🇺🇸 EN' : '🇧🇷 PT'}
-         </button>
-      </div>
+  const changeLanguage = (lang: string) => {
+    i18n.changeLanguage(lang);
+    setIsMenuOpen(false);
+  };
 
-      {/* --- BACKGROUND FX (Grid Pattern) --- */}
-      <div className="fixed inset-0 z-0 pointer-events-none opacity-20" 
-           style={{ backgroundImage: 'radial-gradient(circle at 1px 1px, #334155 1px, transparent 0)', backgroundSize: '40px 40px' }}>
-      </div>
+  const nichesCards = [
+    { 
+      icon: Scissors, 
+      title: t('landing.niches.barber_title'), 
+      desc: t('landing.niches.barber_desc'),
+      color: "text-orange-400",
+      bg: "bg-orange-500/10",
+      border: "border-orange-500/20"
+    },
+    { 
+      icon: Brain, 
+      title: t('landing.niches.health_title'), 
+      desc: t('landing.niches.health_desc'),
+      color: "text-purple-400",
+      bg: "bg-purple-500/10",
+      border: "border-purple-500/20"
+    },
+    { 
+      icon: Dumbbell, 
+      title: t('landing.niches.trainer_title'), 
+      desc: t('landing.niches.trainer_desc'),
+      color: "text-green-400",
+      bg: "bg-green-500/10",
+      border: "border-green-500/20"
+    },
+    { 
+      icon: Briefcase, 
+      title: t('landing.niches.consultant_title'), 
+      desc: t('landing.niches.consultant_desc'),
+      color: "text-blue-400",
+      bg: "bg-blue-500/10",
+      border: "border-blue-500/20"
+    },
+  ];
+
+  return (
+    <div className="min-h-screen bg-slate-950 text-white font-sans selection:bg-primary selection:text-slate-950 overflow-x-hidden">
+      
+      {/* --- HEADER --- */}
+      <nav className="fixed w-full z-50 bg-slate-950/80 backdrop-blur-md border-b border-white/10">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+          <div className="flex justify-between h-16 items-center">
+            <div className="flex items-center gap-2">
+              <div className="w-8 h-8 bg-primary rounded-lg flex items-center justify-center shadow-[0_0_10px_rgba(250,204,21,0.3)]">
+                <Star className="w-5 h-5 text-slate-950 fill-slate-950" />
+              </div>
+              <span className="font-bold text-xl tracking-tight">Cleverya</span>
+            </div>
+            
+            {/* DESKTOP MENU */}
+            <div className="hidden md:flex items-center gap-8">
+              <button onClick={() => scrollToSection('como-funciona')} className="text-sm font-medium text-gray-300 hover:text-white transition-colors">
+                {t('landing.nav.how')}
+              </button>
+              <button onClick={() => scrollToSection('beneficios')} className="text-sm font-medium text-gray-300 hover:text-white transition-colors">
+                {t('landing.nav.benefits')}
+              </button>
+              <button onClick={() => scrollToSection('planos')} className="text-sm font-medium text-gray-300 hover:text-white transition-colors">
+                {t('landing.nav.plans')}
+              </button>
+              
+              <div className="flex items-center gap-2 border-l border-white/10 pl-6">
+                <button 
+                  onClick={() => changeLanguage('pt')} 
+                  className={`text-xs font-bold transition-colors ${i18n.language.includes('pt') ? 'text-primary' : 'text-gray-500 hover:text-white'}`}
+                >
+                  PT
+                </button>
+                <span className="text-gray-700 text-xs">|</span>
+                <button 
+                  onClick={() => changeLanguage('en')} 
+                  className={`text-xs font-bold transition-colors ${i18n.language.includes('en') ? 'text-primary' : 'text-gray-500 hover:text-white'}`}
+                >
+                  EN
+                </button>
+              </div>
+
+              <Link to="/login" className="text-sm font-medium text-white hover:text-primary transition-colors">
+                {t('landing.nav.login')}
+              </Link>
+              <Link to="/signup">
+                <button className="bg-primary hover:bg-primary/90 text-slate-950 px-5 py-2 rounded-full font-bold text-sm transition-all shadow-[0_0_15px_rgba(250,204,21,0.3)] hover:shadow-[0_0_25px_rgba(250,204,21,0.5)]">
+                   {t('landing.nav.start')}
+                </button>
+              </Link>
+            </div>
+
+            <button onClick={() => setIsMenuOpen(!isMenuOpen)} className="md:hidden text-gray-300">
+              {isMenuOpen ? <X /> : <Menu />}
+            </button>
+          </div>
+        </div>
+        
+        {/* MOBILE MENU */}
+        {isMenuOpen && (
+          <div className="md:hidden bg-slate-900 border-b border-white/10">
+            <div className="px-4 pt-2 pb-3 space-y-1">
+              <button onClick={() => scrollToSection('como-funciona')} className="block w-full text-left px-3 py-2 text-gray-300">{t('landing.nav.how')}</button>
+              <button onClick={() => scrollToSection('planos')} className="block w-full text-left px-3 py-2 text-gray-300">{t('landing.nav.plans')}</button>
+              
+              <div className="flex items-center gap-4 px-3 py-2">
+                 <div className="flex items-center gap-2 bg-black/20 px-3 py-1 rounded-full border border-white/5">
+                    <Globe className="w-3 h-3 text-gray-400" />
+                    <button 
+                      onClick={() => changeLanguage('pt')} 
+                      className={`text-xs font-bold ${i18n.language.includes('pt') ? 'text-primary' : 'text-gray-500'}`}
+                    >
+                      PT
+                    </button>
+                    <span className="text-gray-600 text-xs">|</span>
+                    <button 
+                      onClick={() => changeLanguage('en')} 
+                      className={`text-xs font-bold ${i18n.language.includes('en') ? 'text-primary' : 'text-gray-500'}`}
+                    >
+                      EN
+                    </button>
+                 </div>
+              </div>
+
+              <Link to="/login" className="block px-3 py-2 text-gray-300">{t('landing.nav.login')}</Link>
+              <Link to="/signup" className="block px-3 py-2 text-primary font-bold">{t('landing.nav.start')}</Link>
+            </div>
+          </div>
+        )}
+      </nav>
 
       {/* --- HERO SECTION --- */}
-      <header className="relative py-20 lg:py-32 flex items-center justify-center overflow-hidden">
+      <section className="pt-32 pb-20 relative overflow-hidden">
+        <div className="absolute top-0 left-1/2 -translate-x-1/2 w-[800px] h-[500px] bg-primary/20 rounded-full blur-[120px] -z-10 opacity-50" />
         
-        {/* Glow de fundo */}
-        <div className="absolute top-0 left-1/2 -translate-x-1/2 w-[800px] h-[800px] bg-primary/15 blur-[120px] rounded-full pointer-events-none opacity-60 animate-pulse"></div>
-
-        <div className="container relative z-10 px-4 mx-auto text-center space-y-8 animate-fade-in">
-          
-          {/* Badge Superior */}
-          <div className="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-white/5 border border-white/10 text-amber-400 text-xs font-bold tracking-widest uppercase mb-4 backdrop-blur-md shadow-lg hover:bg-white/10 transition-colors cursor-default">
-            <Sparkles className="w-3 h-3 fill-current" /> {t('landing.badge')}
-          </div>
-
-          {/* Título Principal */}
-          <h1 className="text-5xl md:text-7xl font-extrabold tracking-tight leading-tight text-white drop-shadow-2xl">
-            {t('landing.hero_title_1')} <br/>
-            <span className="text-transparent bg-clip-text bg-gradient-to-r from-amber-200 via-orange-400 to-amber-500">
-              {t('landing.hero_title_2')}
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 text-center">
+          <motion.div 
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.5 }}
+            className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-white/5 border border-white/10 text-xs font-medium text-primary mb-6"
+          >
+            <span className="relative flex h-2 w-2">
+              <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-primary opacity-75"></span>
+              <span className="relative inline-flex rounded-full h-2 w-2 bg-primary"></span>
             </span>
-          </h1>
-          
-          <p className="text-lg md:text-xl text-slate-300 max-w-2xl mx-auto leading-relaxed font-medium">
-            {t('landing.hero_subtitle')}
-          </p>
+            {t('landing.hero.badge')}
+          </motion.div>
 
-          <div className="flex flex-col sm:flex-row items-center justify-center gap-4 pt-8">
+          <motion.h1 
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.5, delay: 0.1 }}
+            className="text-4xl md:text-6xl font-extrabold tracking-tight text-white mb-6 leading-tight"
+          >
+            {t('landing.hero.title_1')} <br className="hidden md:block"/>
+            <span className="text-transparent bg-clip-text bg-gradient-to-r from-primary to-yellow-200">
+              {t('landing.hero.title_highlight')}
+            </span> {t('landing.hero.title_2')}
+          </motion.h1>
+
+          <motion.p 
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.5, delay: 0.2 }}
+            className="text-lg md:text-xl text-gray-400 max-w-2xl mx-auto mb-10"
+          >
+            {t('landing.hero.subtitle')}
+          </motion.p>
+
+          <motion.div 
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.5, delay: 0.3 }}
+            className="flex flex-col items-center gap-4"
+          >
             <Link to="/signup">
-              <Button size="lg" className="h-14 px-10 text-base font-bold bg-gradient-to-r from-amber-500 to-orange-500 text-white hover:from-amber-400 hover:to-orange-400 hover:scale-105 transition-all rounded-full shadow-[0_0_40px_rgba(245,158,11,0.3)] border-0">
-                {t('landing.btn_start')} <ChevronRight className="ml-2 w-5 h-5" />
-              </Button>
+              <button className="bg-primary hover:bg-primary/90 text-slate-950 text-lg px-8 py-4 rounded-full font-bold transition-all shadow-[0_0_20px_rgba(250,204,21,0.4)] hover:shadow-[0_0_30px_rgba(250,204,21,0.6)] flex items-center gap-2">
+                👉 {t('landing.hero.cta')}
+              </button>
             </Link>
-          </div>
-          
-          <p className="text-xs text-slate-500 font-medium tracking-wide">{t('landing.disclaimer')}</p>
+            <p className="text-sm text-gray-500 flex items-center gap-2">
+              <Clock className="w-4 h-4" /> {t('landing.hero.micro')}
+            </p>
+          </motion.div>
+
+          {/* VISUAL MOCKUP HERO */}
+          <motion.div 
+            initial={{ opacity: 0, y: 40 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.7, delay: 0.5 }}
+            className="mt-16 relative mx-auto max-w-5xl"
+          >
+             {/* CARD FLUTUANTE 1: Novo Agendamento */}
+             <motion.div 
+               animate={{ y: [0, -10, 0] }}
+               transition={{ repeat: Infinity, duration: 4, ease: "easeInOut" }}
+               className="absolute -top-6 -left-4 md:-left-12 z-20 bg-slate-800 p-4 rounded-xl border border-white/10 shadow-2xl flex items-center gap-4 max-w-[200px] md:max-w-none"
+             >
+                <div className="w-10 h-10 rounded-full bg-green-500/20 flex items-center justify-center">
+                   <Bell className="w-5 h-5 text-green-500" />
+                </div>
+                <div className="text-left">
+                   <p className="text-xs text-gray-400 font-bold">{t('landing.floating.new_app')}</p>
+                   <p className="text-sm text-white font-bold">{t('landing.floating.confirmed')} ✅</p>
+                </div>
+             </motion.div>
+
+             {/* CARD FLUTUANTE 2: Receita Semana */}
+             <motion.div 
+               animate={{ y: [0, 10, 0] }}
+               transition={{ repeat: Infinity, duration: 5, ease: "easeInOut", delay: 1 }}
+               className="absolute -bottom-6 -right-4 md:-right-8 z-20 bg-slate-800 p-4 rounded-xl border border-white/10 shadow-2xl flex items-center gap-4"
+             >
+                <div className="w-10 h-10 rounded-full bg-primary/20 flex items-center justify-center">
+                   <TrendingUp className="w-5 h-5 text-primary" />
+                </div>
+                <div className="text-left">
+                   <p className="text-xs text-gray-400 font-bold">{t('landing.floating.revenue_week')}</p>
+                   <p className="text-lg text-white font-bold text-primary">+ R$ 5.450,00</p>
+                </div>
+             </motion.div>
+
+             {/* IMAGEM PRINCIPAL */}
+             <div className="rounded-xl border border-white/10 shadow-2xl overflow-hidden bg-slate-900 relative z-10">
+                <div className="absolute inset-0 bg-gradient-to-t from-slate-950 via-transparent to-transparent z-10 pointer-events-none"></div>
+                <img 
+                  src="/dashboard-print.png" 
+                  alt="Painel Cleverya" 
+                  className="w-full h-auto object-cover opacity-90 hover:opacity-100 transition-opacity"
+                  onError={(e) => {
+                    e.currentTarget.src = "https://bxglxltapbagjmmkagfm.supabase.co/storage/v1/object/public/public-assets/dashboard-print.jpg";
+                  }}
+                />
+             </div>
+          </motion.div>
         </div>
-      </header>
+      </section>
 
-      {/* --- MOCKUP DA INTERFACE "VIVA" (Corrigido) --- */}
-      <div className="container mx-auto px-4 mb-32 relative z-10">
-        
-        {/* Wrapper Relativo para posicionar os flutuantes FORA do overflow hidden */}
-        <div className="relative max-w-6xl mx-auto">
-
-            {/* --- ELEMENTOS FLUTUANTES (Agora fora da caixa principal) --- */}
-            
-            {/* Notificação 1 (Esquerda) */}
-            <div className="absolute -left-4 lg:-left-12 top-20 z-30 hidden lg:flex items-center gap-3 p-4 bg-[#1e293b] border border-slate-600 rounded-xl shadow-2xl animate-bounce backdrop-blur-md" style={{ animationDuration: '3s' }}>
-                <div className="w-10 h-10 rounded-full bg-green-500/20 flex items-center justify-center text-green-500 shadow-lg shadow-green-500/10">
-                    <CheckCircle2 size={20} />
-                </div>
-                <div>
-                    <p className="text-xs text-slate-400 font-medium">{t('landing.mockup_new_app')}</p>
-                    <p className="text-sm font-bold text-white">{t('landing.mockup_confirmed')}</p>
-                </div>
-            </div>
-
-            {/* Notificação 2 (Direita) */}
-            <div className="absolute -right-4 lg:-right-12 bottom-32 z-30 hidden lg:flex items-center gap-3 p-4 bg-[#1e293b] border border-slate-600 rounded-xl shadow-2xl animate-bounce backdrop-blur-md" style={{ animationDuration: '4s' }}>
-                <div className="w-10 h-10 rounded-full bg-amber-500/20 flex items-center justify-center text-amber-500 shadow-lg shadow-amber-500/10">
-                    <TrendingUp size={20} />
-                </div>
-                <div>
-                    <p className="text-xs text-slate-400 font-medium">{t('landing.mockup_revenue')}</p>
-                    <p className="text-sm font-bold text-emerald-400">
-                        {i18n.language === 'en' ? '+ $ 450.00' : '+ R$ 450,00'}
-                    </p>
-                </div>
-            </div>
-
-            {/* --- O MOCKUP PRINCIPAL --- */}
-            <div className="relative rounded-2xl bg-[#0f172a] border border-slate-700/50 p-2 shadow-2xl group transform hover:scale-[1.005] transition-transform duration-700 ring-1 ring-white/10 overflow-hidden z-20">
-            
-                {/* Barra de Título (Browser) */}
-                <div className="bg-[#020617] border-b border-white/5 h-10 flex items-center px-4 gap-2 rounded-t-xl">
-                    <div className="flex gap-1.5">
-                        <div className="w-2.5 h-2.5 rounded-full bg-red-500/80"></div>
-                        <div className="w-2.5 h-2.5 rounded-full bg-yellow-500/80"></div>
-                        <div className="w-2.5 h-2.5 rounded-full bg-green-500/80"></div>
-                    </div>
-                    <div className="ml-4 h-5 w-64 bg-white/5 rounded text-[10px] text-slate-500 flex items-center px-3 font-mono border border-white/5">
-                        https://app.beautybook.com/dashboard
-                    </div>
-                </div>
-
-                {/* Corpo do Mockup */}
-                <div className="grid grid-cols-12 h-[500px] bg-[#020617] rounded-b-xl overflow-hidden relative">
-                    
-                    {/* Efeito de Luz Interna */}
-                    <div className="absolute top-0 right-0 w-96 h-96 bg-primary/5 blur-[100px] pointer-events-none rounded-full"></div>
-
-                    {/* SIDEBAR */}
-                    <div className="col-span-2 hidden md:flex flex-col border-r border-white/5 bg-[#0f172a]/50 p-4 gap-6">
-                        <div className="flex items-center gap-3 mb-2 px-2">
-                            <div className="w-8 h-8 bg-gradient-to-br from-amber-400 to-orange-600 rounded-lg shadow-lg shadow-orange-500/20"></div>
-                            <div className="h-2 w-16 bg-slate-600 rounded-full"></div>
-                        </div>
-                        <div className="space-y-2">
-                            <div className="h-9 w-full bg-primary/10 border-l-2 border-amber-500 rounded-r flex items-center px-3 gap-3 text-amber-500">
-                                <BarChart3 size={16} />
-                                <div className="h-1.5 w-16 bg-amber-500/50 rounded-full"></div>
-                            </div>
-                            {[1,2,3].map(i => (
-                                <div key={i} className="h-9 w-full flex items-center px-3 gap-3 opacity-40 hover:opacity-100 transition-opacity cursor-pointer">
-                                    <div className="w-4 h-4 bg-slate-500 rounded-sm"></div>
-                                    <div className="h-1.5 w-12 bg-slate-500 rounded-full"></div>
-                                </div>
-                            ))}
-                        </div>
-                    </div>
-
-                    {/* DASHBOARD CONTENT */}
-                    <div className="col-span-12 md:col-span-10 p-6 relative z-10">
-                        
-                        {/* Header */}
-                        <div className="flex justify-between items-center mb-8">
-                            <div>
-                                <div className="h-6 w-48 bg-slate-700/50 rounded mb-2 animate-pulse"></div>
-                                <div className="h-3 w-32 bg-slate-800 rounded"></div>
-                            </div>
-                            <div className="flex gap-4">
-                                <div className="w-10 h-10 rounded-full bg-slate-800 border border-white/5 flex items-center justify-center">
-                                    <Bell size={16} className="text-slate-400" />
-                                </div>
-                                <div className="w-10 h-10 rounded-full bg-gradient-to-br from-purple-500 to-indigo-500 shadow-lg"></div>
-                            </div>
-                        </div>
-
-                        {/* Widgets */}
-                        <div className="grid grid-cols-3 gap-6 mb-6">
-                            {/* Card Principal - Gráfico */}
-                            <div className="col-span-2 p-6 rounded-2xl bg-[#1e293b]/50 border border-white/5 shadow-xl relative overflow-hidden group">
-                                <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/5 to-transparent -translate-x-full group-hover:translate-x-full duration-1000 transition-transform"></div>
-                                <div className="flex justify-between items-start mb-6">
-                                    <div>
-                                        <p className="text-xs text-slate-400 uppercase tracking-wider font-semibold">{t('dashboard.overview.revenue')}</p>
-                                        <h3 className="text-2xl font-bold text-white mt-1">
-                                            {i18n.language === 'en' ? '$ 4,250.00' : 'R$ 4.250,00'}
-                                        </h3>
-                                    </div>
-                                    <div className="text-xs text-emerald-400 bg-emerald-400/10 px-2 py-1 rounded-full font-bold">+ 12.5%</div>
-                                </div>
-                                
-                                {/* Barras do Gráfico */}
-                                <div className="flex items-end gap-3 h-24 mt-4">
-                                    {[40, 70, 45, 90, 60, 80, 50].map((h, i) => (
-                                        <div key={i} className="w-full bg-slate-700/50 rounded-t-sm relative group/bar">
-                                            <div style={{ height: `${h}%` }} className={`absolute bottom-0 w-full rounded-t-sm transition-all duration-500 ${i === 3 ? 'bg-amber-500 shadow-[0_0_15px_rgba(245,158,11,0.5)]' : 'bg-slate-600 group-hover/bar:bg-slate-500'}`}></div>
-                                        </div>
-                                    ))}
-                                </div>
-                            </div>
-
-                            {/* Card Secundário */}
-                            <div className="p-6 rounded-2xl bg-[#1e293b]/50 border border-white/5 shadow-xl flex flex-col justify-between group">
-                                <div>
-                                    <div className="w-10 h-10 rounded-lg bg-orange-500/10 flex items-center justify-center text-orange-500 mb-4 group-hover:scale-110 transition-transform">
-                                        <Calendar size={20}/>
-                                    </div>
-                                    <p className="text-xs text-slate-400 font-semibold uppercase">{t('dashboard.filters.today')}</p>
-                                    <h3 className="text-xl font-bold text-white mt-1">8 {t('dashboard.overview.appointments')}</h3>
-                                </div>
-                                <div className="w-full bg-slate-700/30 rounded-full h-1.5 mt-4">
-                                    <div className="bg-orange-500 h-1.5 rounded-full w-[70%] shadow-[0_0_10px_rgba(249,115,22,0.5)]"></div>
-                                </div>
-                            </div>
-                        </div>
-
-                        {/* Lista Inferior */}
-                        <div className="rounded-2xl bg-[#1e293b]/50 border border-white/5 p-6 shadow-xl">
-                            <div className="flex justify-between mb-4">
-                                <div className="h-4 w-32 bg-slate-700/50 rounded"></div>
-                                <div className="h-4 w-4 bg-slate-700/50 rounded"></div>
-                            </div>
-                            <div className="space-y-3">
-                                {[1, 2].map((i) => (
-                                    <div key={i} className="flex items-center justify-between p-3 rounded-xl bg-black/20 border border-white/5 hover:bg-white/5 transition-colors cursor-default">
-                                        <div className="flex items-center gap-4">
-                                            <div className="w-10 h-10 rounded-full bg-slate-700/50"></div>
-                                            <div className="space-y-1.5">
-                                                <div className="h-2.5 w-32 bg-slate-400 rounded-full"></div>
-                                                <div className="h-2 w-20 bg-slate-600 rounded-full"></div>
-                                            </div>
-                                        </div>
-                                        <div className="px-3 py-1 rounded-full bg-emerald-500/10 text-emerald-500 text-[10px] font-bold border border-emerald-500/20">{t('dashboard.overview.status_confirmed')}</div>
-                                    </div>
-                                ))}
-                            </div>
-                        </div>
-
-                    </div>
-                </div>
-            </div>
-        </div>
-      </div>
-
-      {/* --- QUEM PODE USAR (Interactive Grid) --- */}
-      <section className="py-24 bg-[#0B1120] relative border-t border-white/5">
-        <div className="container mx-auto px-4 relative z-10">
+      {/* --- SEÇÃO DE NICHOS --- */}
+      <section className="py-20 bg-slate-950 border-y border-white/5">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="text-center mb-16">
-            <h2 className="text-3xl md:text-4xl font-bold text-white mb-4">{t('landing.features_title')} <span className="text-amber-500">{t('landing.features_title_highlight')}</span></h2>
-            <p className="text-slate-400 text-lg">{t('landing.features_subtitle')}</p>
+            <span className="text-primary font-bold uppercase tracking-wider text-sm">{t('landing.versatility.badge')}</span>
+            <h2 className="text-3xl md:text-4xl font-bold text-white mt-2">
+              {t('landing.versatility.title')} <span className="text-transparent bg-clip-text bg-gradient-to-r from-primary to-orange-400">{t('landing.versatility.title_highlight')}</span>
+            </h2>
+            <p className="text-gray-400 mt-4 max-w-2xl mx-auto">
+              {t('landing.versatility.subtitle')}
+            </p>
           </div>
 
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-6 max-w-6xl mx-auto">
-            {[
-              { icon: Scissors, label: t('landing.segment_salon'), color: "text-pink-500", bg: "bg-pink-500/10", border: "group-hover:border-pink-500/50" },
-              { icon: Palette, label: t('landing.segment_nails'), color: "text-purple-500", bg: "bg-purple-500/10", border: "group-hover:border-purple-500/50" },
-              { icon: Sparkles, label: t('landing.segment_clinic'), color: "text-cyan-500", bg: "bg-cyan-500/10", border: "group-hover:border-cyan-500/50" },
-              { icon: Heart, label: t('landing.segment_spa'), color: "text-emerald-500", bg: "bg-emerald-500/10", border: "group-hover:border-emerald-500/50" },
-            ].map((item, idx) => (
-              <div key={idx} className={`flex flex-col items-center text-center p-8 rounded-3xl bg-[#1e293b]/40 border border-white/5 transition-all duration-300 group cursor-default shadow-lg hover:shadow-2xl hover:-translate-y-2 ${item.border}`}>
-                <div className={`w-20 h-20 rounded-full ${item.bg} flex items-center justify-center ${item.color} mb-6 group-hover:scale-110 transition-transform duration-300 border border-white/5 shadow-inner`}>
-                  <item.icon className="w-9 h-9" />
+          <div className="grid md:grid-cols-2 lg:grid-cols-4 gap-6">
+            {nichesCards.map((niche, index) => (
+              <motion.div 
+                key={index}
+                whileHover={{ y: -10 }}
+                className={`p-8 rounded-3xl border transition-all ${niche.bg} ${niche.border} hover:bg-opacity-20 flex flex-col items-center text-center`}
+              >
+                <div className={`w-16 h-16 rounded-2xl flex items-center justify-center mb-6 bg-slate-950 shadow-inner`}>
+                   <niche.icon className={`w-8 h-8 ${niche.color}`} />
                 </div>
-                <h3 className="font-bold text-lg text-slate-200 group-hover:text-white transition-colors">{item.label}</h3>
-              </div>
+                <h3 className="font-bold text-xl text-white mb-3">{niche.title}</h3>
+                <p className="text-gray-400 text-sm leading-relaxed">{niche.desc}</p>
+              </motion.div>
             ))}
           </div>
         </div>
       </section>
 
-      {/* --- RODAPÉ --- */}
-      <footer className="bg-[#020617] py-12 border-t border-white/10 relative overflow-hidden">
-        <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_top,_var(--tw-gradient-stops))] from-amber-900/10 via-[#020617] to-[#020617] pointer-events-none"></div>
-        <div className="container mx-auto px-4 text-center relative z-10">
-          <div className="flex items-center justify-center gap-3 mb-8">
-            <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-amber-400 to-orange-600 flex items-center justify-center shadow-lg shadow-orange-500/20">
-              <Sparkles className="w-6 h-6 text-white" />
-            </div>
-            <span className="text-2xl font-bold text-white tracking-tight">{t('common.app_name')}</span>
+      {/* --- SEÇÃO DE DOR --- */}
+      <section className="py-20 bg-slate-900">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+          <div className="text-center mb-16">
+            <span className="text-red-400 font-bold uppercase tracking-wider text-sm">{t('landing.pain.badge')}</span>
+            <h2 className="text-3xl md:text-4xl font-bold text-white mt-2">
+              {t('landing.pain.title')}
+            </h2>
           </div>
-          <p className="text-slate-500 text-sm mb-8">
-            {t('landing.footer_copy')}
+
+          <div className="grid md:grid-cols-2 lg:grid-cols-4 gap-6">
+            {[
+              { icon: Smartphone, text: t('landing.pain.item_1'), color: "text-red-400" }, 
+              { icon: AlertCircle, text: t('landing.pain.item_2'), color: "text-orange-400" }, 
+              { icon: Clock, text: t('landing.pain.item_3'), color: "text-yellow-400" }, 
+              { icon: DollarSign, text: t('landing.pain.item_4'), color: "text-rose-400" }, 
+            ].map((item, index) => (
+              <motion.div 
+                key={index}
+                whileHover={{ y: -5 }}
+                className="bg-slate-950 p-6 rounded-2xl border border-white/5 hover:border-white/10 transition-all"
+              >
+                <item.icon className={`w-10 h-10 ${item.color} mb-4`} />
+                <p className="font-medium text-gray-300 text-lg">{item.text}</p>
+              </motion.div>
+            ))}
+          </div>
+        </div>
+      </section>
+
+      {/* --- SEÇÃO COMO FUNCIONA (RESTAURADA) --- */}
+      <section id="como-funciona" className="py-20 bg-slate-950 border-t border-white/5">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+          <div className="text-center mb-16">
+            <h2 className="text-3xl font-bold text-white">{t('landing.how.title')}</h2>
+            <p className="text-gray-400 mt-2">{t('landing.how.subtitle')}</p>
+          </div>
+
+          <div className="grid md:grid-cols-3 gap-8 relative">
+            {/* Linha conectora (Desktop) */}
+            <div className="hidden md:block absolute top-12 left-0 w-full h-0.5 bg-gradient-to-r from-transparent via-primary/30 to-transparent -z-10" />
+
+            {/* Passo 1 */}
+            <div className="flex flex-col items-center text-center">
+              <div className="w-24 h-24 bg-slate-900 border border-white/10 rounded-full flex items-center justify-center mb-6 shadow-[0_0_20px_rgba(250,204,21,0.1)] relative z-10">
+                <span className="text-4xl font-bold text-primary">1</span>
+              </div>
+              <h3 className="text-xl font-bold text-white mb-2">{t('landing.how.step_1_title')}</h3>
+              <p className="text-gray-400 text-sm max-w-xs">{t('landing.how.step_1_desc')}</p>
+            </div>
+
+            {/* Passo 2 */}
+            <div className="flex flex-col items-center text-center">
+              <div className="w-24 h-24 bg-slate-900 border border-white/10 rounded-full flex items-center justify-center mb-6 shadow-[0_0_20px_rgba(250,204,21,0.1)] relative z-10">
+                <Share2 className="w-10 h-10 text-primary" />
+              </div>
+              <h3 className="text-xl font-bold text-white mb-2">{t('landing.how.step_2_title')}</h3>
+              <p className="text-gray-400 text-sm max-w-xs">{t('landing.how.step_2_desc')}</p>
+            </div>
+
+            {/* Passo 3 */}
+            <div className="flex flex-col items-center text-center">
+              <div className="w-24 h-24 bg-slate-900 border border-white/10 rounded-full flex items-center justify-center mb-6 shadow-[0_0_20px_rgba(250,204,21,0.1)] relative z-10">
+                <MousePointerClick className="w-10 h-10 text-primary" />
+              </div>
+              <h3 className="text-xl font-bold text-white mb-2">{t('landing.how.step_3_title')}</h3>
+              <p className="text-gray-400 text-sm max-w-xs">{t('landing.how.step_3_desc')}</p>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      {/* --- BENEFÍCIOS --- */}
+      <section id="beneficios" className="py-20 bg-slate-950 border-t border-white/5">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+          <div className="grid md:grid-cols-2 gap-12 items-center">
+            <div>
+              <h2 className="text-3xl font-bold text-white mb-6">{t('landing.benefits.title_1')} <span className="text-primary">{t('landing.benefits.title_highlight')}</span></h2>
+              <div className="space-y-4">
+                {[
+                  t('landing.benefits.item_1'),
+                  t('landing.benefits.item_2'),
+                  t('landing.benefits.item_3'),
+                  t('landing.benefits.item_4')
+                ].map((item, i) => (
+                  <div key={i} className="flex items-center gap-3">
+                    <div className="min-w-[24px] min-h-[24px] rounded-full bg-primary/20 flex items-center justify-center">
+                      <CheckCircle className="w-4 h-4 text-primary" />
+                    </div>
+                    <span className="text-gray-300">{item}</span>
+                  </div>
+                ))}
+              </div>
+            </div>
+            
+            <div className="relative">
+               <div className="absolute inset-0 bg-gradient-to-tr from-primary/20 to-transparent rounded-2xl blur-3xl opacity-20" />
+               <div className="bg-slate-900 border border-white/10 rounded-2xl p-2 relative shadow-2xl rotate-1 hover:rotate-0 transition-transform duration-500">
+                  <img 
+                    src="/finance-card.png" 
+                    alt="Controle Financeiro Cleverya" 
+                    className="w-full h-auto rounded-xl shadow-inner"
+                    onError={(e) => {
+                      e.currentTarget.src = "https://bxglxltapbagjmmkagfm.supabase.co/storage/v1/object/public/public-assets/finance-card.jpg";
+                    }}
+                  />
+               </div>
+
+               {/* CARD FLUTUANTE 1: Novo Agendamento (Para ter 2 por imagem) */}
+               <motion.div 
+                 animate={{ y: [0, -10, 0] }}
+                 transition={{ repeat: Infinity, duration: 4, ease: "easeInOut" }}
+                 className="absolute -top-6 -left-4 md:-left-12 z-20 bg-slate-800 p-4 rounded-xl border border-white/10 shadow-2xl flex items-center gap-4 max-w-[200px] md:max-w-none"
+               >
+                  <div className="w-10 h-10 rounded-full bg-green-500/20 flex items-center justify-center">
+                     <Bell className="w-5 h-5 text-green-500" />
+                  </div>
+                  <div className="text-left">
+                     <p className="text-xs text-gray-400 font-bold">{t('landing.floating.new_app')}</p>
+                     <p className="text-sm text-white font-bold">{t('landing.floating.confirmed')} ✅</p>
+                  </div>
+               </motion.div>
+
+               {/* CARD FLUTUANTE 2: Receita Hoje */}
+               <motion.div 
+                 animate={{ y: [0, 10, 0] }}
+                 transition={{ repeat: Infinity, duration: 5, ease: "easeInOut" }}
+                 className="absolute -bottom-6 -right-4 md:-right-8 z-20 bg-slate-800 p-4 rounded-xl border border-white/10 shadow-2xl flex items-center gap-4"
+               >
+                  <div className="w-10 h-10 rounded-full bg-green-500/20 flex items-center justify-center">
+                     <TrendingUp className="w-5 h-5 text-green-500" />
+                  </div>
+                  <div className="text-left">
+                     <p className="text-xs text-gray-400 font-bold">{t('landing.floating.revenue_today')}</p>
+                     <p className="text-lg font-bold text-green-400">+ R$ 450,00</p>
+                  </div>
+               </motion.div>
+            </div>
+
+          </div>
+        </div>
+      </section>
+
+      {/* --- PLANOS --- */}
+      <section id="planos" className="py-20 bg-slate-900 border-t border-white/5">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+          <div className="text-center mb-12">
+            <h2 className="text-3xl font-bold text-white">{t('landing.plans.title')}</h2>
+            <p className="text-gray-400 mt-2 max-w-2xl mx-auto">
+              {t('landing.plans.subtitle')}
+            </p>
+          </div>
+
+          <div className="grid md:grid-cols-3 gap-8 max-w-5xl mx-auto mb-12">
+            
+            {/* Plano Grátis */}
+            <div className="bg-slate-950 p-8 rounded-2xl border border-white/10 hover:border-white/20 transition-all flex flex-col relative overflow-hidden group">
+              <div className="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-gray-500 to-white/20" />
+              <h3 className="text-xl font-bold text-white">{t('landing.plans.free.title')}</h3>
+              <div className="mt-4 mb-2">
+                <span className="text-4xl font-bold text-white">R$ 0</span>
+                <span className="text-gray-400">{t('landing.plans.per_month')}</span>
+              </div>
+              <p className="text-sm text-gray-400 mb-6 font-medium">{t('landing.plans.free.desc')}</p>
+              
+              <ul className="space-y-3 mb-8 flex-1">
+                <li className="flex items-center gap-2 text-sm text-gray-300 font-medium">
+                  <CheckCircle className="w-4 h-4 text-green-500" /> {t('landing.plans.free.item_1')}
+                </li>
+              </ul>
+              <Link to="/signup">
+                <button className="w-full py-3 rounded-xl border border-white/20 text-white font-bold hover:bg-white/5 transition-all">
+                  {t('landing.plans.free.cta')}
+                </button>
+              </Link>
+            </div>
+
+            {/* Plano PRO */}
+            <div className="bg-slate-800 p-8 rounded-2xl border-2 border-primary relative transform md:-translate-y-4 shadow-[0_0_30px_rgba(250,204,21,0.15)] flex flex-col">
+              <div className="absolute top-0 right-0 bg-primary text-slate-950 text-xs font-bold px-3 py-1 rounded-bl-xl rounded-tr-xl">
+                {t('landing.plans.pro.badge')}
+              </div>
+              <h3 className="text-xl font-bold text-white">{t('landing.plans.pro.title')}</h3>
+              <div className="mt-4 mb-2">
+                <span className="text-4xl font-bold text-white">R$ 29,90</span>
+                <span className="text-gray-400">{t('landing.plans.per_month')}</span>
+              </div>
+              <p className="text-sm text-gray-400 mb-6 font-medium">{t('landing.plans.pro.desc')}</p>
+
+              <Link to="/signup">
+                <button className="w-full mt-auto py-3 rounded-xl bg-primary text-slate-950 font-bold hover:bg-primary/90 transition-all shadow-lg">
+                  {t('landing.plans.pro.cta')}
+                </button>
+              </Link>
+            </div>
+
+            {/* Plano Business */}
+            <div className="bg-slate-950 p-8 rounded-2xl border border-white/10 hover:border-white/20 transition-all flex flex-col">
+              <h3 className="text-xl font-bold text-white">{t('landing.plans.business.title')}</h3>
+              <div className="mt-4 mb-2">
+                <span className="text-4xl font-bold text-white">R$ 59,90</span>
+                <span className="text-gray-400">{t('landing.plans.per_month')}</span>
+              </div>
+              <p className="text-sm text-gray-400 mb-6 font-medium">{t('landing.plans.business.desc')}</p>
+              
+              <Link to="/signup">
+                <button className="w-full mt-auto py-3 rounded-xl border border-white/20 text-white font-bold hover:bg-white/5 transition-all">
+                  {t('landing.plans.business.cta')}
+                </button>
+              </Link>
+            </div>
+          </div>
+
+          {/* Comparativo Rápido */}
+          <div className="max-w-3xl mx-auto bg-slate-950 rounded-xl border border-white/10 p-6">
+            <h4 className="text-center font-bold text-white mb-6">{t('landing.plans.compare.title')}</h4>
+            <div className="grid grid-cols-3 gap-4 text-sm">
+              <div className="col-span-1 text-gray-400 font-medium flex items-center">{t('landing.plans.compare.feature')}</div>
+              <div className="col-span-1 text-center font-bold text-primary">Cleverya (Todos)</div>
+              <div className="col-span-1 text-center text-gray-500">{t('landing.plans.compare.others')}</div>
+
+              <div className="col-span-3 h-px bg-white/5 my-1" />
+              
+              <div className="col-span-1 text-gray-300">Link 24h</div>
+              <div className="col-span-1 text-center text-primary"><CheckCircle className="w-4 h-4 mx-auto" /></div>
+              <div className="col-span-1 text-center text-gray-600"><XCircle className="w-4 h-4 mx-auto" /></div>
+
+              <div className="col-span-3 h-px bg-white/5 my-1" />
+
+              <div className="col-span-1 text-gray-300">{t('landing.benefits.item_2')}</div> {/* Reutilizando "Lembretes WhatsApp" se preferir, ou crie uma chave específica */}
+<div className="col-span-1 text-center text-primary"><CheckCircle className="w-4 h-4 mx-auto" /></div>
+{/* LINHA ALTERADA ABAIXO: */}
+<div className="col-span-1 text-center text-gray-600 text-xs md:text-sm">
+  {t('landing.plans.compare.charged_separately')}
+</div>
+            </div>
+          </div>
+
+        </div>
+      </section>
+
+      {/* --- CTA FINAL --- */}
+      <section className="py-20 relative overflow-hidden">
+        <div className="absolute inset-0 bg-primary/10 -z-10" />
+        <div className="max-w-4xl mx-auto px-4 text-center">
+          <h2 className="text-3xl md:text-5xl font-bold text-white mb-6">
+            {t('landing.cta_final.title')}
+          </h2>
+          <Link to="/signup">
+            <button className="bg-primary hover:bg-primary/90 text-slate-950 text-xl px-10 py-5 rounded-full font-bold transition-all shadow-[0_0_30px_rgba(250,204,21,0.5)] hover:scale-105 transform duration-200">
+              👉 {t('landing.cta_final.btn')}
+            </button>
+          </Link>
+          <p className="mt-6 text-gray-400">
+            {t('landing.cta_final.subtitle')}
           </p>
-          <div className="flex justify-center gap-8 text-sm font-semibold">
-            <Link to="/login" className="text-slate-400 hover:text-amber-500 transition-colors">{t('auth.btn_login')}</Link>
-            <Link to="/signup" className="text-slate-400 hover:text-amber-500 transition-colors">{t('auth.btn_signup')}</Link>
+        </div>
+      </section>
+
+      {/* --- FOOTER (RODAPÉ) --- */}
+      <footer className="bg-slate-950 py-12 border-t border-white/10">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 flex flex-col md:flex-row justify-between items-center gap-6">
+          
+          {/* Logo e Copyright */}
+          <div className="flex items-center gap-4">
+            <div className="flex items-center gap-2">
+              <div className="w-6 h-6 bg-primary rounded flex items-center justify-center">
+                <Star className="w-3 h-3 text-slate-950 fill-slate-950" />
+              </div>
+              <span className="font-bold text-lg">Cleverya</span>
+            </div>
+            <div className="text-gray-500 text-sm hidden md:block">|</div>
+            <div className="text-gray-500 text-sm">
+              {t('landing.footer.copy')}
+            </div>
+          </div>
+
+          <div className="flex gap-6">
+            <a href="#" className="text-gray-500 hover:text-white transition-colors text-sm">
+              {t('landing.footer.terms')}
+            </a>
+            <a href="#" className="text-gray-500 hover:text-white transition-colors text-sm">
+              {t('landing.footer.privacy')}
+            </a>
+            <a href="#" className="text-gray-500 hover:text-white transition-colors text-sm">
+              {t('landing.footer.instagram')}
+            </a>
           </div>
         </div>
       </footer>

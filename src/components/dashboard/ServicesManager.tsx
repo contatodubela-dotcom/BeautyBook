@@ -1,84 +1,91 @@
-import { useState, useMemo } from 'react';
+import { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '../../lib/supabase';
 import { useAuth } from '../../hooks/useAuth';
-import { Card } from '../ui/card';
 import { Button } from '../ui/button';
 import { Input } from '../ui/input';
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '../ui/dialog';
-import { Plus, Edit, Trash2, Clock, Layers } from 'lucide-react';
+import { Card } from '../ui/card';
+import { Trash2, Scissors, Plus, Clock, DollarSign, Loader2 } from 'lucide-react';
 import { toast } from 'sonner';
-import { Service } from '../../types';
-import { useTranslation } from 'react-i18next'; // <---
+import { useTranslation } from 'react-i18next';
+
+interface ServiceForm {
+  name: string;
+  duration: string;
+  price: string;
+  category: string;
+}
 
 export default function ServicesManager() {
+  const { t } = useTranslation();
   const { user } = useAuth();
-  const { t, i18n } = useTranslation(); // <---
   const queryClient = useQueryClient();
-  const [isOpen, setIsOpen] = useState(false);
-  const [editingService, setEditingService] = useState<Service | null>(null);
+  const [isCreating, setIsCreating] = useState(false);
   
-  const [formData, setFormData] = useState({
+  const [form, setForm] = useState<ServiceForm>({
     name: '',
-    category: '', 
-    description: '',
-    duration_minutes: '',
+    duration: '30',
     price: '',
+    category: 'Geral'
   });
 
-  const currencyCode = i18n.language === 'en' ? 'USD' : 'BRL';
-
-  // Busca os serviços
-  const { data: services } = useQuery({
-    queryKey: ['services', user?.id],
+  const { data: services, isLoading } = useQuery({
+    queryKey: ['services-list', user?.id],
     queryFn: async () => {
+      const { data: member } = await supabase
+        .from('business_members')
+        .select('business_id')
+        .eq('user_id', user?.id)
+        .single();
+
+      const businessId = member?.business_id;
+      if (!businessId) return [];
+
       const { data, error } = await supabase
         .from('services')
         .select('*')
-        .eq('user_id', user?.id)
-        .order('category', { ascending: true }) 
-        .order('name', { ascending: true });
+        .eq('business_id', businessId)
+        .order('name');
+
       if (error) throw error;
-      return data as Service[];
+      return data;
     },
+    enabled: !!user?.id,
   });
 
-  // Lógica de Agrupamento
-  const groupedServices = useMemo(() => {
-    if (!services) return {};
-    return services.reduce((acc, service) => {
-      const cat = service.category || 'Geral';
-      if (!acc[cat]) acc[cat] = [];
-      acc[cat].push(service);
-      return acc;
-    }, {} as Record<string, Service[]>);
-  }, [services]);
-
-  // --- MUTAÇÕES ---
   const createMutation = useMutation({
-    mutationFn: async (data: any) => {
-      const { error } = await supabase.from('services').insert({ ...data, user_id: user?.id });
-      if (error) throw error;
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['services'] });
-      toast.success(t('common.save') + '!');
-      handleClose();
-    },
-    onError: () => toast.error(t('auth.error_generic')),
-  });
+    mutationFn: async (newService: ServiceForm) => {
+      const { data: member } = await supabase
+        .from('business_members')
+        .select('business_id')
+        .eq('user_id', user?.id)
+        .single();
+        
+      if (!member?.business_id) throw new Error("Empresa não encontrada");
 
-  const updateMutation = useMutation({
-    mutationFn: async ({ id, data }: { id: string; data: any }) => {
-      const { error } = await supabase.from('services').update(data).eq('id', id);
+      const priceValue = newService.price ? parseFloat(newService.price.replace(',', '.')) : 0;
+      const durationValue = parseInt(newService.duration) || 30;
+
+      const { error } = await supabase.from('services').insert({
+        name: newService.name,
+        duration_minutes: durationValue,
+        price: priceValue,
+        category: newService.category,
+        business_id: member.business_id,
+        is_active: true
+      });
+
       if (error) throw error;
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['services'] });
-      toast.success(t('common.save') + '!');
-      handleClose();
+      queryClient.invalidateQueries({ queryKey: ['services-list'] });
+      setForm({ name: '', duration: '30', price: '', category: 'Geral' });
+      setIsCreating(false);
+      toast.success(t('toasts.service_created'));
     },
-    onError: () => toast.error(t('auth.error_generic')),
+    onError: (error: any) => {
+      toast.error(t('toasts.service_error'));
+    }
   });
 
   const deleteMutation = useMutation({
@@ -87,225 +94,131 @@ export default function ServicesManager() {
       if (error) throw error;
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['services'] });
-      toast.success(t('common.delete') + '!');
+      queryClient.invalidateQueries({ queryKey: ['services-list'] });
+      toast.success(t('toasts.service_deleted'));
     },
-    onError: () => toast.error(t('auth.error_generic')),
+    onError: () => toast.error(t('toasts.service_delete_error'))
   });
 
-  // --- HANDLERS ---
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    const data = {
-      name: formData.name,
-      category: formData.category || 'Geral',
-      description: formData.description,
-      duration_minutes: parseInt(formData.duration_minutes),
-      price: formData.price ? parseFloat(formData.price) : null,
-    };
-
-    if (editingService) {
-      updateMutation.mutate({ id: editingService.id, data });
-    } else {
-      createMutation.mutate(data);
-    }
+    if (!form.name.trim()) return;
+    createMutation.mutate(form);
   };
 
-  const handleEdit = (service: Service) => {
-    setEditingService(service);
-    setFormData({
-      name: service.name,
-      category: service.category || '',
-      description: service.description || '',
-      duration_minutes: service.duration_minutes.toString(),
-      price: service.price?.toString() || '',
-    });
-    setIsOpen(true);
-  };
-
-  const handleClose = () => {
-    setIsOpen(false);
-    setEditingService(null);
-    setFormData({ name: '', category: '', description: '', duration_minutes: '', price: '' });
-  };
+  if (isLoading) return <div className="p-8 flex justify-center"><Loader2 className="animate-spin text-white" /></div>;
 
   return (
-    <div className="space-y-6 animate-fade-in pb-10">
-      
-      {/* Cabeçalho */}
-      <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 border-b border-white/10 pb-6">
+    <div className="space-y-6">
+      <div className="flex justify-between items-center">
         <div>
-          <h2 className="text-2xl font-bold text-white">{t('dashboard.services.title')}</h2>
-          <p className="text-gray-400">{t('dashboard.services.subtitle')}</p>
+          <h2 className="text-2xl font-bold text-white">{t('dashboard.services.title', { defaultValue: 'Serviços' })}</h2>
+          <p className="text-slate-400">{t('dashboard.services.subtitle', { defaultValue: 'Configure o que você oferece aos clientes.' })}</p>
         </div>
-
-        <Dialog open={isOpen} onOpenChange={(open) => !open && handleClose()}>
-          <DialogTrigger asChild>
-            <Button onClick={() => setIsOpen(true)} className="bg-primary hover:bg-primary/90 text-gray-900 font-bold shadow-[0_0_20px_rgba(246,173,85,0.3)] border-none">
-              <Plus className="w-4 h-4 mr-2" />
-              {t('dashboard.services.btn_new')}
-            </Button>
-          </DialogTrigger>
-          
-          {/* MODAL DE CADASTRO */}
-          <DialogContent className="max-w-md bg-[#1e293b] border-white/10 text-white">
-            <DialogHeader>
-              <DialogTitle className="text-white">
-                {editingService ? t('common.edit') : t('dashboard.services.btn_new')}
-              </DialogTitle>
-            </DialogHeader>
-            <form onSubmit={handleSubmit} className="space-y-4 py-2">
-              <div>
-                <label className="text-xs font-medium mb-1.5 block text-gray-400 uppercase tracking-wider">{t('dashboard.services.label_name')} *</label>
-                <Input
-                  value={formData.name}
-                  onChange={(e) => setFormData({ ...formData, name: e.target.value })}
-                  placeholder="Ex: Sessão Turbo"
-                  required
-                  className="bg-black/20 border-white/10 text-white placeholder-gray-600 focus:border-primary"
-                />
-              </div>
-
-              <div className="grid grid-cols-2 gap-4">
-                 <div>
-                    <label className="text-xs font-medium mb-1.5 block text-gray-400 uppercase tracking-wider">{t('dashboard.services.label_category')}</label>
-                    <Input
-                      value={formData.category}
-                      onChange={(e) => setFormData({ ...formData, category: e.target.value })}
-                      placeholder="Ex: Bronze..."
-                      className="bg-black/20 border-white/10 text-white placeholder-gray-600 focus:border-primary"
-                    />
-                 </div>
-                 <div>
-                    <label className="text-xs font-medium mb-1.5 block text-gray-400 uppercase tracking-wider">{t('dashboard.services.label_price')}</label>
-                    <Input
-                      type="number"
-                      step="0.01"
-                      value={formData.price}
-                      onChange={(e) => setFormData({ ...formData, price: e.target.value })}
-                      placeholder="0.00"
-                      className="bg-black/20 border-white/10 text-white placeholder-gray-600 focus:border-primary"
-                    />
-                 </div>
-              </div>
-
-              <div>
-                <label className="text-xs font-medium mb-1.5 block text-gray-400 uppercase tracking-wider">{t('dashboard.services.label_duration')} *</label>
-                <Input
-                  type="number"
-                  value={formData.duration_minutes}
-                  onChange={(e) => setFormData({ ...formData, duration_minutes: e.target.value })}
-                  placeholder="Ex: 30"
-                  required
-                  min="5"
-                  className="bg-black/20 border-white/10 text-white placeholder-gray-600 focus:border-primary"
-                />
-              </div>
-
-              <div>
-                <label className="text-xs font-medium mb-1.5 block text-gray-400 uppercase tracking-wider">{t('dashboard.services.label_desc')}</label>
-                <textarea
-                  className="flex min-h-[80px] w-full rounded-md border border-white/10 bg-black/20 px-3 py-2 text-sm text-white placeholder:text-gray-600 focus-visible:outline-none focus-visible:border-primary"
-                  value={formData.description}
-                  onChange={(e) => setFormData({ ...formData, description: e.target.value })}
-                />
-              </div>
-
-              <div className="flex gap-3 pt-2">
-                <Button type="button" variant="ghost" onClick={handleClose} className="flex-1 text-gray-400 hover:text-white hover:bg-white/5">
-                  {t('common.cancel')}
-                </Button>
-                <Button type="submit" className="flex-1 bg-primary hover:bg-primary/90 text-gray-900 font-bold">
-                  {editingService ? t('common.save') : t('common.create')}
-                </Button>
-              </div>
-            </form>
-          </DialogContent>
-        </Dialog>
+        <Button onClick={() => setIsCreating(true)} className="gap-2 bg-primary text-slate-900 hover:bg-primary/90">
+          <Plus className="w-4 h-4" /> {t('dashboard.services.btn_new')}
+        </Button>
       </div>
 
-      {/* --- LISTAGEM --- */}
-      <div className="space-y-10">
-        {Object.entries(groupedServices).map(([category, items]) => (
-          <div key={category} className="animate-fade-in">
+      {isCreating && (
+        <Card className="p-6 border border-white/10 bg-slate-800 animate-in slide-in-from-top-4">
+          <form onSubmit={handleSubmit} className="grid md:grid-cols-4 gap-4 items-end">
+            <div className="md:col-span-1 space-y-2">
+              <label className="text-xs font-bold text-slate-400 uppercase">{t('dashboard.services.label_name')}</label>
+              <Input 
+                placeholder="Ex: Corte de Cabelo" 
+                value={form.name}
+                onChange={e => setForm({...form, name: e.target.value})}
+                autoFocus
+                required
+                className="bg-white text-slate-900" 
+              />
+            </div>
             
-            <div className="flex items-center gap-3 mb-5 border-l-4 border-primary pl-4">
-               <h3 className="text-xl font-bold text-white tracking-wide">{category}</h3>
-               <span className="text-[10px] font-bold bg-white/10 text-gray-300 px-2 py-0.5 rounded-full border border-white/5">
-                 {items.length}
-               </span>
+            <div className="md:col-span-1 space-y-2">
+              <label className="text-xs font-bold text-slate-400 uppercase">{t('dashboard.services.label_category')}</label>
+              <Input 
+                placeholder="Ex: Cabelo" 
+                value={form.category}
+                onChange={e => setForm({...form, category: e.target.value})}
+                className="bg-white text-slate-900"
+              />
             </div>
 
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-              {items.map((service) => (
-                <Card key={service.id} className="group relative p-5 hover:border-primary/50 transition-all border-white/10 bg-[#1e293b] shadow-lg">
-                  
-                  <div className="flex justify-between items-start mb-3">
-                    <h4 className="font-bold text-white text-lg leading-tight pr-2">{service.name}</h4>
-                    {service.price && (
-                        <span className="font-bold text-primary bg-primary/10 px-2 py-1 rounded text-sm border border-primary/20 whitespace-nowrap">
-                            {new Intl.NumberFormat(i18n.language, { style: 'currency', currency: currencyCode }).format(service.price)}
-                        </span>
-                    )}
-                  </div>
-                  
-                  {service.description ? (
-                      <p className="text-sm text-gray-400 mb-5 min-h-[2.5rem] line-clamp-2 leading-relaxed">
-                          {service.description}
-                      </p>
-                  ) : (
-                      <div className="mb-5 min-h-[2.5rem]"></div>
-                  )}
-
-                  <div className="flex items-center justify-between border-t border-white/5 pt-4">
-                      <div className="flex items-center gap-2 text-sm text-gray-400">
-                          <Clock className="w-4 h-4 text-primary" />
-                          <span>{service.duration_minutes} min</span>
-                      </div>
-                      
-                      <div className="flex gap-2">
-                          <Button
-                            size="sm"
-                            variant="ghost"
-                            className="h-8 w-8 p-0 text-gray-400 hover:text-white hover:bg-white/10"
-                            onClick={() => handleEdit(service)}
-                          >
-                            <Edit className="w-4 h-4" />
-                          </Button>
-                          <Button
-                            size="sm"
-                            variant="ghost"
-                            className="h-8 w-8 p-0 text-red-400/70 hover:text-red-400 hover:bg-red-500/10"
-                            onClick={() => {
-                                if(window.confirm(t('common.confirm_delete'))) {
-                                    deleteMutation.mutate(service.id)
-                                }
-                            }}
-                          >
-                            <Trash2 className="w-4 h-4" />
-                          </Button>
-                      </div>
-                  </div>
-                </Card>
-              ))}
+            <div className="space-y-2">
+              <label className="text-xs font-bold text-slate-400 uppercase">{t('dashboard.services.label_price')}</label>
+              <div className="relative">
+                 <DollarSign className="absolute left-2 top-2.5 w-4 h-4 text-slate-500" />
+                 <Input 
+                   placeholder="0,00" 
+                   value={form.price}
+                   onChange={e => setForm({...form, price: e.target.value})}
+                   className="pl-8 bg-white text-slate-900"
+                 />
+              </div>
             </div>
-          </div>
-        ))}
 
-        {(!services || services.length === 0) && (
-          <div className="py-16 text-center border border-dashed border-white/10 rounded-xl bg-white/5">
-            <div className="w-16 h-16 bg-white/5 rounded-full flex items-center justify-center mx-auto mb-4 border border-white/5">
-               <Layers className="w-8 h-8 text-gray-500" />
+            <div className="space-y-2">
+              <label className="text-xs font-bold text-slate-400 uppercase">{t('dashboard.services.label_duration')}</label>
+              <div className="relative">
+                 <Clock className="absolute left-2 top-2.5 w-4 h-4 text-slate-500" />
+                 <Input 
+                   type="number"
+                   placeholder="30" 
+                   value={form.duration}
+                   onChange={e => setForm({...form, duration: e.target.value})}
+                   className="pl-8 bg-white text-slate-900"
+                 />
+              </div>
             </div>
-            <h3 className="text-lg font-medium text-white">{t('dashboard.services.empty_title')}</h3>
-            <p className="text-gray-400 mb-6 max-w-sm mx-auto">
-              {t('dashboard.services.empty_desc')}
-            </p>
-            <Button onClick={() => setIsOpen(true)} className="bg-primary hover:bg-primary/90 text-gray-900 font-bold">
-              {t('dashboard.services.btn_new')}
-            </Button>
+
+            <div className="md:col-span-4 flex justify-end gap-2 mt-2">
+              <Button type="button" variant="ghost" onClick={() => setIsCreating(false)} className="text-slate-300 hover:text-white">{t('common.cancel')}</Button>
+              <Button type="submit" disabled={createMutation.isPending} className="bg-primary text-slate-900 font-bold">{t('common.save')}</Button>
+            </div>
+          </form>
+        </Card>
+      )}
+
+      <div className="grid gap-3">
+        {services?.length === 0 && !isCreating && (
+          <div className="text-center py-12 text-slate-500 bg-slate-800/50 rounded-xl border border-dashed border-slate-700">
+             <Scissors className="w-12 h-12 mx-auto mb-3 opacity-20" />
+             <p>{t('dashboard.services.empty_desc')}</p>
           </div>
         )}
+
+        {services?.map((service) => (
+          <Card key={service.id} className="p-4 flex items-center justify-between hover:border-primary/30 transition-all group border-white/10 bg-slate-800/50">
+            <div className="flex items-center gap-4">
+              <div className="w-12 h-12 rounded-xl bg-slate-700 text-slate-300 flex items-center justify-center font-bold text-lg group-hover:bg-primary group-hover:text-slate-900 transition-colors">
+                {service.name.charAt(0).toUpperCase()}
+              </div>
+              <div>
+                <h3 className="font-bold text-white">{service.name}</h3>
+                <div className="flex items-center gap-3 text-xs text-slate-400 mt-1">
+                  <span className="flex items-center gap-1"><Clock className="w-3 h-3" /> {service.duration_minutes} min</span>
+                  <span className="w-1 h-1 rounded-full bg-slate-600" />
+                  <span className="flex items-center gap-1 font-medium text-primary">
+                     {new Intl.NumberFormat(t('common.price_locale', {defaultValue: 'pt-BR'}), { style: 'currency', currency: t('common.currency', {defaultValue: 'BRL'}) }).format(service.price || 0)}
+                  </span>
+                  <span className="bg-slate-700 px-2 py-0.5 rounded-full uppercase text-[10px] tracking-wide text-slate-300">{service.category || 'Geral'}</span>
+                </div>
+              </div>
+            </div>
+
+            <Button 
+              variant="ghost" 
+              size="icon" 
+              className="text-slate-500 hover:text-red-400 hover:bg-red-900/20 transition-all"
+              onClick={() => {
+                 if (confirm(t('toasts.confirm_delete_service'))) deleteMutation.mutate(service.id);
+              }}
+            >
+              <Trash2 className="w-4 h-4" />
+            </Button>
+          </Card>
+        ))}
       </div>
     </div>
   );

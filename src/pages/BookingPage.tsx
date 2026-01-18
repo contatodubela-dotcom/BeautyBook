@@ -1,23 +1,24 @@
-import { useState, useMemo, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { useParams } from 'react-router-dom';
 import { useQuery, useMutation } from '@tanstack/react-query';
 import { supabase } from '../lib/supabase';
 import { Card } from '../components/ui/card';
 import { Button } from '../components/ui/button';
 import { Input } from '../components/ui/input';
-import { Sparkles, Calendar, Clock, CheckCircle, ArrowLeft, Star, User as UserIcon } from 'lucide-react';
+import { Sparkles, Clock, CheckCircle, ArrowLeft, Loader2, AlertTriangle, Crown } from 'lucide-react';
 import { toast } from 'sonner';
-import { format, addDays, parseISO, isSameDay } from 'date-fns';
+import { format, addDays, parseISO } from 'date-fns';
 import { ptBR, enUS } from 'date-fns/locale';
-import { Service, AvailabilitySetting } from '../types';
 import { useTranslation } from 'react-i18next';
 
-// --- TIPAGEM ---
-interface BusinessProfile {
-  user_id: string;
-  business_name: string;
-  banner_url: string | null;
-  slug: string | null;
+// --- TIPAGEM INTERNA ---
+interface BusinessInfo {
+  id: string;
+  owner_id: string;
+  name: string;
+  banner_url?: string;
+  slug: string;
+  plan_type?: string;
 }
 
 interface Professional {
@@ -27,117 +28,169 @@ interface Professional {
   is_active: boolean;
 }
 
-const generateGoogleCalendarUrl = (serviceName: string, date: string, time: string, duration: number) => {
-  const start = new Date(`${date}T${time}`);
-  const end = new Date(start.getTime() + duration * 60000);
-  const formatDate = (d: Date) => d.toISOString().replace(/-|:|\.\d\d\d/g, "");
-  return `https://www.google.com/calendar/render?action=TEMPLATE&text=${encodeURIComponent(serviceName)}&dates=${formatDate(start)}/${formatDate(end)}&details=Agendamento+confirmado`;
-};
+interface Service {
+  id: string;
+  name: string;
+  price: number | null;
+  duration_minutes: number;
+  description?: string;
+  category?: string;
+}
 
-// --- WRAPPER (LÓGICA DE BUSCA) ---
+interface AvailabilitySetting {
+  id: string;
+  day_of_week: number;
+  start_time: string;
+  end_time: string;
+  is_active: boolean;
+}
+
+// --- COMPONENTE PRINCIPAL ---
 export default function BookingPage() {
   const params = useParams();
-  const paramId = params.userId; // Rota: /book/:userId
-  const paramSlug = params.slug; // Rota: /:slug
+  const paramId = params.userId; 
+  const paramSlug = params.slug;
 
-  const [resolvedUserId, setResolvedUserId] = useState<string | null>(null);
-  const [profileData, setProfileData] = useState<BusinessProfile | null>(null);
+  const [businessData, setBusinessData] = useState<BusinessInfo | null>(null);
   const [loadingProfile, setLoadingProfile] = useState(true);
 
   useEffect(() => {
     async function resolveProfile() {
       setLoadingProfile(true);
-      console.log("Iniciando busca...", { paramId, paramSlug });
-
       try {
-        let query = supabase.from('business_profiles').select('*');
-
-        // LÓGICA DE DECISÃO
+        // 1. Tenta buscar na tabela NOVA (Businesses)
         if (paramSlug) {
-          // Busca exata pelo slug (ignorando maiúsculas/minúsculas se o banco permitir, mas aqui forçamos exato)
-          // Dica: No passo anterior do SQL, forçamos 'empilhaplus' tudo minúsculo no banco.
-          query = query.eq('slug', paramSlug.toLowerCase());
-        } else if (paramId) {
-          query = query.eq('user_id', paramId);
-        } else {
-          console.log("Nenhum parâmetro de busca encontrado.");
-          setLoadingProfile(false);
-          return;
+          const { data } = await supabase
+            .from('businesses')
+            .select('*')
+            .eq('slug', paramSlug.toLowerCase())
+            .maybeSingle();
+            
+          if (data) {
+            setBusinessData({
+                id: data.id,
+                owner_id: data.owner_id,
+                name: data.name,
+                slug: data.slug,
+                plan_type: data.plan_type,
+                banner_url: data.banner_url // CORREÇÃO: Banner carregado corretamente
+            });
+            setLoadingProfile(false);
+            return;
+          }
         }
 
-        const { data, error } = await query.maybeSingle();
-
-        if (error) {
-          console.error("Erro no Supabase:", error);
-        }
-
-        if (data) {
-          console.log("Perfil encontrado:", data);
-          setResolvedUserId(data.user_id);
-          setProfileData(data as BusinessProfile);
-        } else {
-          console.warn("Nenhum perfil retornado do banco.");
+        // 2. FALLBACK: Tabela Antiga
+        let query = supabase.from('business_profiles').select('*');
+        if (paramSlug) query = query.eq('slug', paramSlug.toLowerCase());
+        else if (paramId) query = query.eq('user_id', paramId);
+        
+        const { data: oldProfile } = await query.maybeSingle();
+        
+        if (oldProfile) {
+            const { data: newBiz } = await supabase
+                .from('businesses')
+                .select('id, plan_type, banner_url')
+                .eq('owner_id', oldProfile.user_id)
+                .maybeSingle();
+            
+            setBusinessData({
+                id: newBiz?.id || oldProfile.user_id,
+                owner_id: oldProfile.user_id,
+                name: oldProfile.business_name,
+                banner_url: newBiz?.banner_url || oldProfile.banner_url,
+                slug: oldProfile.slug,
+                plan_type: newBiz?.plan_type
+            });
         }
 
       } catch (err) {
-        console.error("Erro inesperado:", err);
+        console.error("Erro ao carregar perfil:", err);
       } finally {
         setLoadingProfile(false);
       }
     }
-
     resolveProfile();
   }, [paramId, paramSlug]);
 
-  if (loadingProfile) {
-    return (
-      <div className="min-h-screen flex items-center justify-center bg-[#f8fafc]">
-        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary"></div>
-      </div>
-    );
-  }
+  if (loadingProfile) return <div className="min-h-screen flex items-center justify-center bg-[#f8fafc]"><div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary"></div></div>;
+  if (!businessData) return <div className="min-h-screen flex flex-col items-center justify-center bg-[#f8fafc] text-slate-500"><Sparkles className="w-12 h-12 mb-4 text-slate-300" /><h2 className="text-xl font-bold">Página não encontrada</h2></div>;
 
-  if (!resolvedUserId || !profileData) {
-    return (
-      <div className="min-h-screen flex flex-col items-center justify-center bg-[#f8fafc] text-slate-500">
-        <Sparkles className="w-12 h-12 mb-4 text-slate-300" />
-        <h2 className="text-xl font-bold">Página não encontrada</h2>
-        <p className="mb-4">Não encontramos um estabelecimento neste endereço.</p>
-        <div className="bg-slate-200 p-4 rounded text-xs font-mono text-slate-600">
-           Debug: {paramSlug ? `Slug: ${paramSlug}` : `ID: ${paramId}`}
-        </div>
-      </div>
-    );
-  }
-
-  return <BookingContent userId={resolvedUserId} profile={profileData} />;
+  return <BookingContent business={businessData} />;
 }
 
-// --- CONTEÚDO (MANTIDO IGUAL, SÓ TRADUÇÃO) ---
-function BookingContent({ userId, profile }: { userId: string, profile: BusinessProfile }) {
+// --- CONTEÚDO DO AGENDAMENTO ---
+function BookingContent({ business }: { business: BusinessInfo }) {
   const { t, i18n } = useTranslation();
-  
-  // Helpers
   const dateLocale = i18n.language === 'en' ? enUS : ptBR;
   const currencyCode = i18n.language === 'en' ? 'USD' : 'BRL';
   const formatPrice = (price: number) => new Intl.NumberFormat(i18n.language, { style: 'currency', currency: currencyCode }).format(price);
 
-  const [step, setStep] = useState<'service' | 'datetime' | 'info' | 'success'>('service');
+  // --- 1. VERIFICAÇÃO DE PLANO E LIMITES ---
+  const { data: usageMetrics } = useQuery({
+    queryKey: ['public-usage-metrics', business.owner_id],
+    queryFn: async () => {
+      const { data, error } = await supabase.rpc('get_usage_metrics', { target_user_id: business.owner_id });
+      if (error) return null;
+      return data as { appointments_used: number, current_plan: string };
+    },
+    enabled: !!business.owner_id
+  });
+
+  const currentPlan = usageMetrics?.current_plan || 'free';
+  const isPremium = currentPlan === 'pro' || currentPlan === 'business';
+  
+  const isLimitReached = useMemo(() => {
+    if (!usageMetrics) return false;
+    if (currentPlan === 'free' && usageMetrics.appointments_used >= 50) {
+        return true;
+    }
+    return false;
+  }, [usageMetrics, currentPlan]);
+
+  // ESTADOS
+  const [step, setStep] = useState<'service' | 'datetime' | 'identification' | 'confirmation' | 'success'>('service');
   const [selectedService, setSelectedService] = useState<Service | null>(null);
   const [selectedProfessional, setSelectedProfessional] = useState<Professional | null>(null);
   const [selectedDate, setSelectedDate] = useState<string>('');
   const [selectedTime, setSelectedTime] = useState<string>('');
-  const [clientName, setClientName] = useState('');
+  
   const [clientPhone, setClientPhone] = useState('');
+  const [clientName, setClientName] = useState('');
+  const [clientEmail, setClientEmail] = useState('');
+  const [isCheckingPhone, setIsCheckingPhone] = useState(false);
+  const [existingClient, setExistingClient] = useState<any>(null);
 
-  const businessName = profile.business_name || t('booking.default_business_name');
-  const bannerUrl = profile.banner_url;
+  const businessName = business.name || t('booking.default_business_name', { defaultValue: 'Agendamento Online' });
+  const bannerUrl = business.banner_url;
 
-  // QUERIES
+  // --- TELA DE BLOQUEIO ---
+  if (isLimitReached) {
+    return (
+        <div className="min-h-screen bg-slate-50 flex flex-col items-center justify-center p-6 text-center font-sans">
+            <div className="w-20 h-20 bg-red-100 rounded-full flex items-center justify-center mb-6">
+                <AlertTriangle className="w-10 h-10 text-red-500" />
+            </div>
+            <h1 className="text-2xl font-bold text-slate-900 mb-2">
+                {t('booking.limit_title', { defaultValue: 'Agendamentos Pausados' })}
+            </h1>
+            <p className="text-slate-600 max-w-md mb-8">
+                {t('booking.limit_desc', { defaultValue: 'Este estabelecimento atingiu o limite mensal de agendamentos.' })}
+            </p>
+        </div>
+    );
+  }
+
+  // --- QUERIES DE DADOS ---
   const { data: services } = useQuery({
-    queryKey: ['public-services', userId],
+    queryKey: ['public-services', business.id],
     queryFn: async () => {
-      const { data } = await supabase.from('services').select('*').eq('user_id', userId).eq('is_active', true).order('price');
+      const { data } = await supabase
+        .from('services')
+        .select('*')
+        .eq('business_id', business.id)
+        .eq('is_active', true)
+        .order('price');
       return data as Service[];
     },
   });
@@ -145,59 +198,159 @@ function BookingContent({ userId, profile }: { userId: string, profile: Business
   const groupedServices = useMemo(() => {
     if (!services) return {};
     return services.reduce((acc, service) => {
-      const cat = service.category || 'Geral';
+      // 1. Pega a categoria do banco
+      let cat = service.category;
+
+      // 2. Lógica de Tradução:
+      // Se não tiver categoria OU se a categoria for exatamente "Geral",
+      // usamos a tradução do i18n.
+      if (!cat || cat === 'Geral') {
+          cat = t('booking.category_general', { defaultValue: 'Geral' });
+      }
+
       if (!acc[cat]) acc[cat] = [];
       acc[cat].push(service);
       return acc;
     }, {} as Record<string, Service[]>);
-  }, [services]);
+  }, [services, t, i18n.language]); // Adicionamos i18n.language para recalcular ao trocar idioma
 
   const { data: professionals } = useQuery({
-    queryKey: ['public-professionals', userId],
+    queryKey: ['public-professionals', business.id],
     queryFn: async () => {
-      const { data } = await supabase.from('professionals').select('*').eq('user_id', userId).eq('is_active', true);
+      const { data } = await supabase
+        .from('professionals')
+        .select('*')
+        .eq('business_id', business.id)
+        .eq('is_active', true);
       return data as Professional[] || [];
     },
   });
 
   const { data: availability } = useQuery({
-    queryKey: ['public-availability', userId],
+    queryKey: ['public-availability', business.id],
     queryFn: async () => {
-      const { data } = await supabase.from('availability_settings').select('*').eq('user_id', userId).eq('is_active', true);
+      const { data } = await supabase
+        .from('availability_settings')
+        .select('*')
+        .eq('business_id', business.id)
+        .eq('is_active', true);
       return data as AvailabilitySetting[];
     },
   });
 
-  const { data: appointmentCounts } = useQuery({
-    queryKey: ['appointments-count', userId, selectedDate, selectedProfessional?.id],
+  const { data: availableSlots, isLoading: isLoadingSlots } = useQuery({
+    queryKey: ['available-slots', selectedProfessional?.id, selectedDate],
     queryFn: async () => {
-      if (!selectedDate || !selectedProfessional) return {};
-      const { data } = await supabase.from('appointments').select('appointment_time').eq('user_id', userId).eq('professional_id', selectedProfessional.id).eq('appointment_date', selectedDate).in('status', ['pending', 'confirmed']);
-      const counts: Record<string, number> = {};
-      data?.forEach((app: any) => { const timeKey = app.appointment_time.slice(0, 5); counts[timeKey] = (counts[timeKey] || 0) + 1; });
-      return counts;
+      if (!selectedProfessional?.id || !selectedDate) return [];
+      
+      const { data, error } = await supabase.rpc('get_available_slots', {
+        p_professional_id: selectedProfessional.id,
+        p_date: selectedDate,
+        p_interval_minutes: selectedService?.duration_minutes || 30
+      });
+
+      if (error) {
+        console.error('Error fetching slots:', error);
+        toast.error(t('booking.error_fetch_slots', { defaultValue: 'Erro ao buscar horários' }));
+        return [];
+      }
+      
+      return (data as { slot: string }[]).map(item => item.slot.slice(0, 5));
     },
     enabled: !!selectedDate && !!selectedProfessional,
   });
 
+  // --- HANDLERS ---
+  const handlePhoneSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!clientPhone || clientPhone.length < 8) {
+        toast.error(t('common.invalid_phone', { defaultValue: "Telefone inválido" }));
+        return;
+    }
+
+    setIsCheckingPhone(true);
+    try {
+        const { data } = await supabase
+            .from('clients')
+            .select('*')
+            .eq('phone', clientPhone)
+            .eq('business_id', business.id)
+            .limit(1)
+            .maybeSingle();
+
+        if (data) {
+            setExistingClient(data);
+            setClientName(data.name);
+            setClientEmail(data.email || '');
+            toast.success(t('booking.welcome_back', { name: data.name.split(' ')[0], defaultValue: `Olá, ${data.name.split(' ')[0]}!` }));
+        } else {
+            setExistingClient(null);
+            setClientName('');
+            setClientEmail('');
+        }
+        setStep('confirmation');
+    } catch (err) {
+        toast.error(t('booking.error_verify', { defaultValue: 'Erro ao verificar' }));
+    } finally {
+        setIsCheckingPhone(false);
+    }
+  };
+
   const createAppointmentMutation = useMutation({
     mutationFn: async () => {
-      let clientId;
-      const { data: existingClient } = await supabase.from('clients').select('id').eq('phone', clientPhone).single();
-      if (existingClient) clientId = existingClient.id;
-      else {
-        const { data: newClient, error } = await supabase.from('clients').insert({ name: clientName, phone: clientPhone }).select().single();
-        if (error) throw error; clientId = newClient.id;
+      let clientId = existingClient?.id;
+
+      if (existingClient) {
+         if (clientEmail !== existingClient.email) {
+             await supabase.from('clients').update({ email: clientEmail }).eq('id', clientId);
+         }
+      } else {
+         const { data: newClient, error } = await supabase.from('clients').insert({ 
+             name: clientName, 
+             phone: clientPhone, 
+             email: clientEmail || null, 
+             business_id: business.id 
+         }).select().single();
+         
+         if (error) throw error;
+         clientId = newClient.id;
       }
-      
-      const { data: blocked } = await supabase.from('blocked_clients').select('id').eq('user_id', userId).eq('client_id', clientId).maybeSingle();
+
+      // Verificação de Bloqueio (Simplificada)
+      const { data: blocked } = await supabase.from('blocked_clients').select('id').eq('client_id', clientId).maybeSingle();
       if (blocked) throw new Error('Blocked');
 
-      const { error } = await supabase.from('appointments').insert({ user_id: userId, client_id: clientId, service_id: selectedService!.id, professional_id: selectedProfessional!.id, appointment_date: selectedDate, appointment_time: selectedTime, status: 'pending' });
-      if (error) throw error;
+      const { error: appError } = await supabase.from('appointments').insert({ 
+          business_id: business.id, 
+          client_id: clientId, 
+          service_id: selectedService!.id, 
+          professional_id: selectedProfessional!.id, 
+          appointment_date: selectedDate, 
+          appointment_time: selectedTime, 
+          status: 'pending' 
+      });
+      
+      if (appError) throw appError;
+
+      if (clientEmail) {
+        supabase.functions.invoke('send-email', {
+            body: {
+                to: clientEmail,
+                subject: `Confirmação: ${selectedService!.name}`,
+                clientName: clientName,
+                serviceName: selectedService!.name,
+                date: format(parseISO(selectedDate), 'dd/MM/yyyy'),
+                time: selectedTime,
+                type: 'confirmation'
+            }
+        });
+      }
     },
     onSuccess: () => setStep('success'),
-    onError: () => toast.error(t('auth.error_generic')),
+    onError: (err: any) => {
+        if (err.message === 'Blocked') toast.error(t('booking.blocked_error', { defaultValue: 'Você não pode agendar aqui.' }));
+        else toast.error(t('auth.error_generic', { defaultValue: 'Erro ao agendar.' }));
+    },
   });
 
   const getAvailableDates = () => {
@@ -205,55 +358,33 @@ function BookingContent({ userId, profile }: { userId: string, profile: Business
     for (let i = 0; i < 14; i++) {
       const date = addDays(new Date(), i);
       const dayOfWeek = date.getDay();
-      const hasAvailability = availability?.some(a => a.day_of_week === dayOfWeek);
-      if (hasAvailability) dates.push(format(date, 'yyyy-MM-dd'));
+      if (availability?.some(a => a.day_of_week === dayOfWeek)) dates.push(format(date, 'yyyy-MM-dd'));
     }
     return dates;
   };
 
-  const getAvailableTimeSlots = () => {
-    if (!selectedDate || !availability || !selectedProfessional) return [];
-    const dateObj = parseISO(selectedDate);
-    const dayOfWeek = dateObj.getDay();
-    const dayAvailability = availability.find(a => a.day_of_week === dayOfWeek);
-    if (!dayAvailability) return [];
-    
-    const now = new Date();
-    const isToday = isSameDay(dateObj, now);
-    const currentHour = now.getHours();
-    const currentMinute = now.getMinutes();
-    const slots = [];
-    
-    const [startHour, startMinute] = dayAvailability.start_time.split(':').map(Number);
-    const [endHour, endMinute] = dayAvailability.end_time.split(':').map(Number);
-    let loopHour = startHour; let loopMinute = startMinute;
-
-    while (loopHour < endHour || (loopHour === endHour && loopMinute < endMinute)) {
-      const timeString = `${String(loopHour).padStart(2, '0')}:${String(loopMinute).padStart(2, '0')}`;
-      let isPast = false;
-      if (isToday && (loopHour < currentHour || (loopHour === currentHour && loopMinute <= currentMinute))) isPast = true;
-      const currentCount = appointmentCounts?.[timeString] || 0;
-      const capacity = selectedProfessional.capacity || 1;
-      if (!isPast && currentCount < capacity) slots.push(timeString);
-      loopMinute += 30;
-      if (loopMinute >= 60) { loopMinute = 0; loopHour++; }
-    }
-    return slots;
-  };
-
-  const handleDateTimeConfirm = () => { if (selectedDate && selectedTime && selectedProfessional) setStep('info'); };
+  const handleDateTimeConfirm = () => { if (selectedDate && selectedTime && selectedProfessional) setStep('identification'); }; 
   const handleSubmit = (e: React.FormEvent) => { e.preventDefault(); createAppointmentMutation.mutate(); };
+  const handleBack = () => {
+      if (step === 'identification') setStep('datetime');
+      else if (step === 'confirmation') setStep('identification');
+      else if (step === 'datetime') setStep('service');
+  }
+
+  const inputStyle = { backgroundColor: '#ffffff', color: '#000000', borderColor: '#e2e8f0', opacity: 1, WebkitTextFillColor: '#000000' };
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-[#fffbf0] via-[#fff5f5] to-[#fff0f0] flex flex-col items-center justify-start pb-12 font-sans text-slate-900">
       
-      {/* Botões de Idioma */}
+      <style>{`input:-webkit-autofill { -webkit-box-shadow: 0 0 0 30px white inset !important; -webkit-text-fill-color: black !important; }`}</style>
+
+      {/* Seletor de Idioma */}
       <div className="absolute top-4 right-4 z-50 flex gap-2">
-         <button onClick={() => i18n.changeLanguage('pt')} className="text-xs bg-white/50 p-2 rounded-full hover:bg-white transition">🇧🇷</button>
-         <button onClick={() => i18n.changeLanguage('en')} className="text-xs bg-white/50 p-2 rounded-full hover:bg-white transition">🇺🇸</button>
+         <button onClick={() => i18n.changeLanguage('pt')} className={`text-xs p-2 rounded-full transition ${i18n.language === 'pt' ? 'bg-white shadow-md opacity-100' : 'bg-white/50 opacity-60 hover:opacity-100'}`}>🇧🇷</button>
+         <button onClick={() => i18n.changeLanguage('en')} className={`text-xs p-2 rounded-full transition ${i18n.language === 'en' ? 'bg-white shadow-md opacity-100' : 'bg-white/50 opacity-60 hover:opacity-100'}`}>🇺🇸</button>
       </div>
 
-      {/* BANNER */}
+      {/* BANNER DINÂMICO */}
       <div 
         className={`w-full h-64 md:h-80 shadow-lg bg-cover bg-center relative transition-all duration-500 ${!bannerUrl ? 'bg-gradient-to-r from-amber-200 to-orange-100' : ''}`}
         style={bannerUrl ? { backgroundImage: `url(${bannerUrl})` } : undefined}
@@ -263,7 +394,6 @@ function BookingContent({ userId, profile }: { userId: string, profile: Business
 
       <div className="w-full max-w-lg px-4 -mt-32 relative z-10">
         
-        {/* CABEÇALHO */}
         <div className="bg-white/95 backdrop-blur-md rounded-3xl shadow-xl p-6 mb-8 text-center border border-white/50 relative overflow-hidden">
           <div className="w-28 h-28 bg-white rounded-full mx-auto -mt-20 flex items-center justify-center shadow-2xl border-4 border-white">
              <div className="w-full h-full rounded-full bg-[#fffbf0] flex items-center justify-center overflow-hidden">
@@ -271,50 +401,42 @@ function BookingContent({ userId, profile }: { userId: string, profile: Business
              </div>
           </div>
 
-          <h1 className="text-3xl font-bold text-slate-900 mt-4 tracking-tight">{businessName}</h1>
-          <p className="text-sm text-slate-500 flex items-center justify-center gap-1 mt-2 uppercase tracking-widest font-medium">
-            <Star className="w-3 h-3 text-[#d4af37] fill-[#d4af37]" />
-            {t('booking.premium_exp')}
-          </p>
+          <div className="mt-4">
+            <h1 className="text-3xl font-bold text-slate-900 tracking-tight leading-tight">{businessName}</h1>
+            
+            {/* CORREÇÃO: Badge Premium só aparece para planos PRO/BUSINESS */}
+            {isPremium && (
+                <div className="flex items-center justify-center gap-1 mt-2 text-[#d4af37] font-bold text-xs uppercase tracking-widest animate-pulse">
+                    <Crown className="w-3 h-3 fill-current" />
+                    <span>{t('booking.premium_exp', { defaultValue: 'Experiência Premium' })}</span>
+                </div>
+            )}
+          </div>
 
           {step !== 'success' && step !== 'service' && (
-            <button onClick={() => setStep(step === 'info' ? 'datetime' : 'service')} className="absolute top-4 left-4 text-slate-400 hover:text-[#d4af37] transition-colors bg-white/80 p-2 rounded-full hover:bg-white shadow-sm">
+            <button onClick={handleBack} className="absolute top-4 left-4 text-slate-400 hover:text-[#d4af37] transition-colors bg-white/80 p-2 rounded-full hover:bg-white shadow-sm">
               <ArrowLeft className="w-5 h-5" />
             </button>
           )}
         </div>
-
-        {/* CONTEÚDO PRINCIPAL */}
+        
         <div className="space-y-8">
-          <div className="text-center">
-             <h2 className="text-xl font-medium text-slate-700">
-                {step === 'service' && t('booking.step_service')}
-                {step === 'datetime' && t('booking.step_date')}
-                {step === 'info' && t('booking.step_info')}
-                {step === 'success' && t('booking.step_success')}
-             </h2>
-             <div className="h-0.5 w-16 bg-[#d4af37]/30 mx-auto rounded-full mt-3"></div>
-          </div>
-
           {step === 'service' && (
-            <div className="space-y-8 animate-fade-in">
-              {Object.entries(groupedServices).map(([category, items]) => (
+            <div className="space-y-4 animate-fade-in">
+                <h2 className="text-xl font-medium text-slate-700 text-center mb-6">{t('booking.step_service', { defaultValue: 'Selecione um serviço' })}</h2>
+                {Object.entries(groupedServices).map(([category, items]) => (
                 <div key={category}>
-                  <h3 className="text-xs font-bold text-[#d4af37] uppercase tracking-widest mb-4 ml-1 flex items-center gap-2">
-                    <span className="w-2 h-2 rounded-full bg-[#d4af37]"></span> {category}
-                  </h3>
-                  <div className="grid grid-cols-1 gap-4">
+                  <h3 className="text-xs font-bold text-[#d4af37] uppercase tracking-widest mb-3 ml-1">{category}</h3>
+                  <div className="grid gap-3">
                     {items.map((service) => (
-                      <button key={service.id} onClick={() => { setSelectedService(service); setStep('datetime'); setSelectedProfessional(null); setSelectedDate(''); setSelectedTime(''); }} className="group relative flex items-center p-5 bg-white rounded-2xl border border-[#f5f0e6] shadow-sm hover:border-[#d4af37]/30 hover:shadow-lg transition-all text-left w-full overflow-hidden">
+                      <button key={service.id} onClick={() => { setSelectedService(service); setStep('datetime'); setSelectedProfessional(null); setSelectedDate(''); setSelectedTime(''); }} className="flex items-center p-4 bg-white rounded-2xl border border-[#f5f0e6] shadow-sm hover:border-[#d4af37]/30 hover:shadow-md transition-all text-left w-full group">
                         <div className="flex-1">
-                          <div className="flex justify-between items-center mb-1">
-                             <span className="font-bold text-slate-800 text-lg group-hover:text-[#d4af37] transition-colors">{service.name}</span>
-                             {service.price && <span className="font-medium text-slate-900 bg-[#fffbf0] px-3 py-1 rounded-full text-sm border border-[#f5f0e6]">{formatPrice(service.price)}</span>}
+                          <div className="flex justify-between">
+                            <span className="font-bold text-slate-800 group-hover:text-[#d4af37] transition-colors">{service.name}</span>
+                            {service.price && <span className="font-medium text-sm bg-slate-100 px-2 py-1 rounded text-slate-600">{formatPrice(service.price)}</span>}
                           </div>
-                          {service.description && <p className="text-sm text-slate-500 leading-relaxed mt-1">{service.description}</p>}
-                          <div className="flex items-center gap-2 text-xs text-slate-400 mt-3 font-medium">
-                            <Clock className="w-3.5 h-3.5" /> {service.duration_minutes} {t('booking.minutes_session')}
-                          </div>
+                          {service.description && <p className="text-xs text-slate-500 mt-1 line-clamp-1">{service.description}</p>}
+                          <div className="flex items-center gap-1 text-xs text-slate-400 mt-2"><Clock className="w-3 h-3" /> {service.duration_minutes} min</div>
                         </div>
                       </button>
                     ))}
@@ -324,89 +446,82 @@ function BookingContent({ userId, profile }: { userId: string, profile: Business
             </div>
           )}
 
-          {/* ... MANTENHA O RESTO DOS PASSOS (DATETIME, INFO, SUCCESS) IGUAIS ... */}
-          {/* Para economizar espaço, o restante da lógica de passos é idêntica ao arquivo anterior que estava correto. */}
-          {/* O IMPORTANTE FOI O useEffect NO TOPO */}
-          
           {step === 'datetime' && (
-            <div className="bg-white rounded-3xl border border-[#f5f0e6] shadow-xl p-6 animate-fade-in space-y-8">
-              <div>
-                <label className="text-sm font-bold text-slate-900 mb-4 flex items-center gap-2 uppercase tracking-wide">{t('booking.label_prof')}</label>
-                {(!professionals || professionals.length === 0) ? (
-                   <p className="text-sm text-red-500">{t('booking.no_prof')}</p>
-                ) : (
-                  <div className="grid grid-cols-1 gap-3">
+             <div className="bg-white rounded-3xl border border-[#f5f0e6] shadow-xl p-6 animate-fade-in space-y-6">
+                <h2 className="text-lg font-bold text-center text-slate-800 mb-4">{t('booking.step_date', { defaultValue: 'Data & Hora' })}</h2>
+                <div className="grid gap-2">
                     {professionals.map((prof) => (
-                      <button key={prof.id} onClick={() => { setSelectedProfessional(prof); setSelectedDate(''); setSelectedTime(''); }} className={`p-4 rounded-xl border text-left transition-all relative ${selectedProfessional?.id === prof.id ? 'bg-[#fffbf0] border-[#d4af37] text-slate-900 shadow-sm' : 'bg-white text-slate-600 border-slate-100 hover:border-[#d4af37]/30'}`}>
-                        <div className="flex items-center justify-between"><span className="font-bold text-sm">{prof.name}</span>{selectedProfessional?.id === prof.id && <CheckCircle className="w-5 h-5 text-[#d4af37]" />}</div>
+                      <button key={prof.id} onClick={() => { setSelectedProfessional(prof); setSelectedDate(''); setSelectedTime(''); }} className={`p-3 rounded-xl border text-left transition-all flex justify-between items-center ${selectedProfessional?.id === prof.id ? 'bg-[#fffbf0] border-[#d4af37] text-slate-900' : 'bg-white text-slate-600 border-slate-100 hover:border-slate-300'}`}>
+                        <span className="font-bold text-sm">{prof.name}</span>{selectedProfessional?.id === prof.id && <CheckCircle className="w-4 h-4 text-[#d4af37]" />}
                       </button>
                     ))}
-                  </div>
-                )}
-              </div>
-              {selectedProfessional && (
-                <div className="space-y-8 animate-fade-in">
-                  <div>
-                    <label className="text-sm font-bold text-slate-900 mb-4 block uppercase tracking-wide">{t('booking.label_date')}</label>
-                    <div className="flex gap-3 overflow-x-auto pb-4 scrollbar-hide">
-                      {getAvailableDates().map((date) => (
-                        <button key={date} onClick={() => { setSelectedDate(date); setSelectedTime(''); }} className={`min-w-[5rem] p-4 rounded-2xl flex flex-col items-center justify-center transition-all border ${selectedDate === date ? 'bg-slate-800 text-white border-slate-800 shadow-lg transform -translate-y-1' : 'bg-white text-slate-400 border-slate-100 hover:border-[#d4af37]/50'}`}>
-                          <span className="text-[10px] uppercase font-bold mb-1 opacity-80">{format(parseISO(date), 'EEE', { locale: dateLocale })}</span>
-                          <span className="text-2xl font-black">{format(parseISO(date), 'dd')}</span>
-                        </button>
-                      ))}
-                    </div>
-                  </div>
-                  {selectedDate && (
-                    <div className="animate-fade-in">
-                      <label className="text-sm font-bold text-slate-900 mb-4 block uppercase tracking-wide">{t('booking.label_time')}</label>
-                      {getAvailableTimeSlots().length === 0 ? <div className="p-4 bg-red-50 text-red-600 rounded-xl text-sm text-center border border-red-100">{t('booking.no_slots')}</div> : 
-                          <div className="grid grid-cols-3 gap-3 max-h-60 overflow-y-auto pr-1 custom-scrollbar">
-                            {getAvailableTimeSlots().map((time) => (
-                              <button key={time} onClick={() => setSelectedTime(time)} className={`py-3 rounded-xl text-sm font-bold transition-all border ${selectedTime === time ? 'bg-[#d4af37] text-white border-[#d4af37] shadow-md' : 'bg-white text-slate-600 border-slate-100 hover:border-[#d4af37] hover:text-[#d4af37]'}`}>{time}</button>
-                            ))}
-                          </div>
-                      }
-                    </div>
-                  )}
                 </div>
-              )}
-              <Button className="w-full bg-slate-900 hover:bg-slate-800 text-white font-bold h-14 rounded-xl shadow-xl text-lg mt-6" disabled={!selectedDate || !selectedTime || !selectedProfessional} onClick={handleDateTimeConfirm}>{t('booking.btn_continue')}</Button>
-            </div>
+                {selectedProfessional && (
+                    <>
+                        <div className="flex gap-2 overflow-x-auto pb-2 scrollbar-hide">
+                            {getAvailableDates().map((date) => (
+                                <button key={date} onClick={() => { setSelectedDate(date); setSelectedTime(''); }} className={`min-w-[4.5rem] p-3 rounded-xl flex flex-col items-center justify-center border transition-all ${selectedDate === date ? 'bg-slate-800 text-white shadow-lg scale-105' : 'bg-white text-slate-400 border-slate-100 hover:bg-slate-50'}`}>
+                                    <span className="text-[10px] uppercase font-bold">{format(parseISO(date), 'EEE', { locale: dateLocale })}</span>
+                                    <span className="text-xl font-black">{format(parseISO(date), 'dd')}</span>
+                                </button>
+                            ))}
+                        </div>
+                        {selectedDate && (
+                            <div className="grid grid-cols-3 gap-2 max-h-48 overflow-y-auto pr-1 custom-scrollbar">
+                                {isLoadingSlots ? <div className="col-span-3 py-4 flex justify-center"><Loader2 className="animate-spin text-[#d4af37]" /></div> : availableSlots?.length === 0 ? (
+                                    <div className="col-span-3 text-center text-sm text-slate-400 py-4">{t('booking.no_slots', {defaultValue: 'Sem horários.'})}</div>
+                                ) : availableSlots?.map((time) => (
+                                    <button key={time} onClick={() => setSelectedTime(time)} className={`py-2 rounded-lg text-sm font-bold border transition-all ${selectedTime === time ? 'bg-[#d4af37] text-white border-[#d4af37] shadow-md' : 'bg-white text-slate-600 border-slate-100 hover:border-[#d4af37]'}`}>{time}</button>
+                                ))}
+                            </div>
+                        )}
+                        <Button className="w-full bg-slate-900 hover:bg-slate-800 text-white font-bold h-12 rounded-xl mt-4" disabled={!selectedTime} onClick={handleDateTimeConfirm}>{t('booking.btn_continue', { defaultValue: 'Continuar' })}</Button>
+                    </>
+                )}
+             </div>
           )}
 
-          {step === 'info' && (
-            <Card className="p-0 animate-fade-in border-0 shadow-2xl bg-white rounded-3xl overflow-hidden">
-              <div className="bg-[#fffbf0] p-6 border-b border-[#f5f0e6]">
-                  <h3 className="font-bold text-[#d4af37] mb-4 text-xs uppercase tracking-widest">{t('booking.summary_title')}</h3>
-                  <div className="flex justify-between items-start mb-2">
-                     <div><span className="font-playfair font-bold text-slate-900 text-2xl block">{selectedService?.name}</span><span className="text-sm text-slate-500 block mt-1">{t('booking.prof_prefix')} {selectedProfessional?.name}</span></div>
-                     <span className="font-bold text-slate-900 text-xl">{selectedService?.price ? formatPrice(selectedService.price) : ''}</span>
-                  </div>
-                  <div className="flex items-center gap-2 text-slate-600 mt-4 bg-white/50 p-3 rounded-lg w-fit"><Calendar className="w-4 h-4" /><span className="capitalize font-medium">{selectedDate && format(parseISO(selectedDate), "EEE, dd/MM", { locale: dateLocale })}</span><span className="mx-1">•</span><span>{selectedTime}</span></div>
-              </div>
-              <form onSubmit={handleSubmit} className="p-8 space-y-6">
-                <div className="space-y-4">
-                  <div><label className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-2 block">{t('booking.label_name')}</label><Input value={clientName} onChange={(e) => setClientName(e.target.value)} placeholder={t('booking.placeholder_name')} required className="bg-slate-50 border-slate-200 h-14 rounded-xl focus:ring-[#d4af37] !text-slate-900 placeholder:text-slate-400" /></div>
-                  <div><label className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-2 block">{t('booking.label_phone')}</label><Input value={clientPhone} onChange={(e) => setClientPhone(e.target.value)} placeholder={t('booking.placeholder_phone')} required className="bg-slate-50 border-slate-200 h-14 rounded-xl focus:ring-[#d4af37] !text-slate-900 placeholder:text-slate-400" /></div>
-                </div>
-                <Button type="submit" className="w-full bg-[#d4af37] hover:bg-[#c5a028] text-white font-bold h-14 rounded-xl shadow-lg text-lg" disabled={createAppointmentMutation.isPending}>{createAppointmentMutation.isPending ? t('booking.btn_confirming') : t('booking.btn_confirm')}</Button>
-              </form>
-            </Card>
+          {step === 'identification' && (
+             <Card className="p-8 animate-fade-in border-0 shadow-2xl bg-white rounded-3xl">
+                <div className="text-center mb-6"><h3 className="text-lg font-bold text-slate-900">{t('booking.step_identification', { defaultValue: 'Identificação' })}</h3></div>
+                <form onSubmit={handlePhoneSubmit} className="space-y-4">
+                    <Input value={clientPhone} onChange={(e) => setClientPhone(e.target.value)} placeholder="(00) 00000-0000" required className="h-14 text-center text-lg tracking-widest font-medium" style={inputStyle} />
+                    <Button type="submit" className="w-full bg-[#d4af37] hover:bg-[#c5a028] text-white font-bold h-12 rounded-xl" disabled={isCheckingPhone}>{isCheckingPhone ? <Loader2 className="animate-spin" /> : t('booking.btn_continue', { defaultValue: 'Continuar' })}</Button>
+                </form>
+             </Card>
+          )}
+
+          {step === 'confirmation' && (
+             <Card className="p-6 animate-fade-in border-0 shadow-2xl bg-white rounded-3xl">
+                <h3 className="text-center font-bold text-slate-900 mb-6">{t('booking.step_confirmation', { defaultValue: 'Confirmação' })}</h3>
+                <form onSubmit={handleSubmit} className="space-y-4">
+                    <Input value={clientName} onChange={(e) => setClientName(e.target.value)} placeholder={t('booking.label_your_name', {defaultValue: 'Seu Nome'})} required className="h-12" style={inputStyle} />
+                    <Input value={clientPhone} disabled className="h-12 bg-slate-50 opacity-70" style={inputStyle} />
+                    <Input type="email" value={clientEmail} onChange={(e) => setClientEmail(e.target.value)} placeholder={t('booking.label_email_optional', {defaultValue: 'Email (Opcional)'})} className="h-12" style={inputStyle} />
+                    <Button type="submit" className="w-full bg-[#d4af37] hover:bg-[#c5a028] text-white font-bold h-12 rounded-xl" disabled={createAppointmentMutation.isPending}>{createAppointmentMutation.isPending ? t('booking.confirming', {defaultValue: 'Confirmando...'}) : t('booking.btn_confirm', { defaultValue: 'Confirmar' })}</Button>
+                </form>
+             </Card>
           )}
 
           {step === 'success' && (
-            <Card className="p-10 text-center animate-fade-in bg-white border-0 shadow-2xl rounded-3xl">
-               <div className="w-24 h-24 rounded-full bg-green-50 flex items-center justify-center mx-auto mb-6 ring-8 ring-green-50/30"><CheckCircle className="w-12 h-12 text-green-600" /></div>
-              <h2 className="text-3xl font-bold mb-4 text-slate-900 tracking-tight">{t('booking.success_title')}</h2>
-              <p className="text-slate-500 mb-8 leading-relaxed">{t('booking.success_msg', { name: clientName.split(' ')[0], service: selectedService?.name })}</p>
-              <div className="space-y-3">
-                <Button variant="outline" className="w-full border-slate-200 text-slate-600 hover:bg-slate-50 h-14 rounded-xl" onClick={() => window.open(generateGoogleCalendarUrl(selectedService?.name || '', selectedDate, selectedTime, selectedService?.duration_minutes || 60), '_blank')}><Calendar className="w-4 h-4 mr-2" /> {t('booking.btn_calendar')}</Button>
-                <Button className="w-full bg-slate-900 hover:bg-slate-800 text-white font-bold h-14 rounded-xl" onClick={() => window.location.reload()}>{t('booking.btn_new')}</Button>
-              </div>
-            </Card>
+             <Card className="p-8 text-center animate-fade-in bg-white border-0 shadow-2xl rounded-3xl">
+                <CheckCircle className="w-16 h-16 text-green-500 mx-auto mb-4" />
+                <h2 className="text-2xl font-bold mb-2">{t('booking.success_title', { defaultValue: 'Agendado!' })}</h2>
+                <p className="text-slate-500 mb-6">{t('booking.success_msg', { name: clientName.split(' ')[0], service: selectedService?.name, defaultValue: 'Tudo certo com seu agendamento.' })}</p>
+                <Button className="w-full bg-slate-900 text-white h-12 rounded-xl" onClick={() => window.location.reload()}>{t('booking.btn_new', { defaultValue: 'Novo Agendamento' })}</Button>
+             </Card>
           )}
         </div>
+
+        {currentPlan === 'free' && (
+            <div className="mt-12 text-center animate-fade-in pb-8">
+                <a href="https://cleverya.com" target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-2 px-4 py-2 bg-white/50 backdrop-blur-sm rounded-full border border-white/20 text-xs font-medium text-slate-500 hover:text-slate-800 hover:bg-white transition-all shadow-sm">
+                    <Sparkles className="w-3 h-3 text-[#d4af37]" />
+                    <span>Powered by <strong>Cleverya</strong></span>
+                </a>
+            </div>
+        )}
+
       </div>
     </div>
   );

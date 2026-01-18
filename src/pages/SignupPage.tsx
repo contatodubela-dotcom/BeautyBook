@@ -120,7 +120,7 @@ export default function SignupPage() {
               {/* Mostra uma prévia do link para o usuário */}
               {businessName && (
                 <p className="text-[10px] text-gray-500 mt-1">
-                  Seu link será: <strong>beautybook.app/{generateSlug(businessName)}</strong>
+                  Seu link será: <strong>Cleverya.app/{generateSlug(businessName)}</strong>
                 </p>
               )}
             </div>

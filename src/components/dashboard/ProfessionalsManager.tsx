@@ -2,72 +2,63 @@ import { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '../../lib/supabase';
 import { useAuth } from '../../hooks/useAuth';
-import { Card } from '../ui/card';
+import { usePlan } from '../../hooks/usePlan';
 import { Button } from '../ui/button';
 import { Input } from '../ui/input';
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '../ui/dialog';
-import { Plus, Edit, Trash2, Users, UserCheck } from 'lucide-react';
+import { Card } from '../ui/card';
+import { Trash2, User, Plus, Crown, AlertCircle, Loader2 } from 'lucide-react';
 import { toast } from 'sonner';
-import { useTranslation } from 'react-i18next'; // <---
-
-interface Professional {
-  id: string;
-  name: string;
-  capacity: number;
-  is_active: boolean;
-}
+import { useTranslation } from 'react-i18next';
 
 export default function ProfessionalsManager() {
+  const { t } = useTranslation();
   const { user } = useAuth();
-  const { t } = useTranslation(); // <---
+  const { checkLimit, plan, loading: loadingPlan } = usePlan();
   const queryClient = useQueryClient();
-  const [isOpen, setIsOpen] = useState(false);
-  const [editingProf, setEditingProf] = useState<Professional | null>(null);
-  
-  const [formData, setFormData] = useState({
-    name: '',
-    capacity: '1',
-  });
+  const [newProName, setNewProName] = useState('');
+  const [isCreating, setIsCreating] = useState(false);
 
-  // 1. Busca Profissionais
-  const { data: professionals } = useQuery({
-    queryKey: ['professionals', user?.id],
+  const { data: professionals, isLoading } = useQuery({
+    queryKey: ['professionals-list', user?.id],
     queryFn: async () => {
+      const { data: member } = await supabase.from('business_members').select('business_id').eq('user_id', user?.id).single();
+      const businessId = member?.business_id;
+      if (!businessId) return [];
+
       const { data, error } = await supabase
         .from('professionals')
         .select('*')
-        .eq('user_id', user?.id)
-        .order('name');
+        .eq('business_id', businessId)
+        .order('created_at');
+
       if (error) throw error;
-      return data as Professional[];
+      return data;
     },
+    enabled: !!user?.id,
   });
 
-  // 2. Mutações
   const createMutation = useMutation({
-    mutationFn: async (data: any) => {
-      const { error } = await supabase.from('professionals').insert({ ...data, user_id: user?.id });
-      if (error) throw error;
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['professionals'] });
-      toast.success(t('common.save') + '!');
-      handleClose();
-    },
-    onError: () => toast.error(t('auth.error_generic')),
-  });
+    mutationFn: async (name: string) => {
+      const { data: member } = await supabase.from('business_members').select('business_id').eq('user_id', user?.id).single();
+      if (!member?.business_id) throw new Error("Empresa não encontrada");
 
-  const updateMutation = useMutation({
-    mutationFn: async ({ id, data }: { id: string; data: any }) => {
-      const { error } = await supabase.from('professionals').update(data).eq('id', id);
+      const { error } = await supabase.from('professionals').insert({
+        name,
+        business_id: member.business_id, 
+        capacity: 1,
+        is_active: true
+      });
+
       if (error) throw error;
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['professionals'] });
-      toast.success(t('common.save') + '!');
-      handleClose();
+      queryClient.invalidateQueries({ queryKey: ['professionals-list'] });
+      queryClient.invalidateQueries({ queryKey: ['usage-metrics'] });
+      setNewProName('');
+      setIsCreating(false);
+      toast.success(t('toasts.pro_added'));
     },
-    onError: () => toast.error(t('auth.error_generic')),
+    onError: () => toast.error(t('toasts.pro_add_error'))
   });
 
   const deleteMutation = useMutation({
@@ -76,161 +67,100 @@ export default function ProfessionalsManager() {
       if (error) throw error;
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['professionals'] });
-      toast.success(t('common.delete') + '!');
+      queryClient.invalidateQueries({ queryKey: ['professionals-list'] });
+      toast.success(t('toasts.pro_deleted'));
     },
-    onError: (error: any) => {
-        if (error.code === '23503') {
-            toast.error('Não é possível excluir: Agendamentos vinculados.');
-        } else {
-            toast.error(t('auth.error_generic'));
-        }
-    },
+    onError: () => toast.error(t('toasts.pro_delete_error'))
   });
 
-  const toggleActiveMutation = useMutation({
-    mutationFn: async ({ id, currentState }: { id: string; currentState: boolean }) => {
-      const { error } = await supabase.from('professionals').update({ is_active: !currentState }).eq('id', id);
-      if (error) throw error;
-    },
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['professionals'] }),
-  });
-
-  // Handlers
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleAdd = (e: React.FormEvent) => {
     e.preventDefault();
-    const data = {
-      name: formData.name,
-      capacity: parseInt(formData.capacity) || 1,
-    };
-
-    if (editingProf) {
-      updateMutation.mutate({ id: editingProf.id, data });
-    } else {
-      createMutation.mutate(data);
-    }
+    if (!newProName.trim()) return;
+    createMutation.mutate(newProName);
   };
 
-  const handleEdit = (prof: Professional) => {
-    setEditingProf(prof);
-    setFormData({
-      name: prof.name,
-      capacity: prof.capacity.toString(),
-    });
-    setIsOpen(true);
-  };
+  const canAdd = checkLimit('professionals');
 
-  const handleClose = () => {
-    setIsOpen(false);
-    setEditingProf(null);
-    setFormData({ name: '', capacity: '1' });
-  };
+  if (isLoading || loadingPlan) return <div className="p-8 flex justify-center"><Loader2 className="animate-spin text-white" /></div>;
 
   return (
-    <div className="space-y-6 animate-fade-in pb-10">
-      
-      <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 border-b border-white/10 pb-6">
+    <div className="space-y-6">
+      <div className="flex justify-between items-center">
         <div>
-          <h2 className="text-2xl font-bold text-white">{t('dashboard.team.title')}</h2>
-          <p className="text-gray-400">{t('dashboard.team.subtitle')}</p>
+          <h2 className="text-2xl font-bold text-white">{t('dashboard.team.title', { defaultValue: 'Equipe' })}</h2>
+          <p className="text-slate-400">{t('dashboard.team.subtitle', { defaultValue: 'Gerencie quem atende em sua empresa.' })}</p>
         </div>
-
-        <Dialog open={isOpen} onOpenChange={(open) => !open && handleClose()}>
-          <DialogTrigger asChild>
-            <Button onClick={() => setIsOpen(true)} className="bg-primary hover:bg-primary/90 text-gray-900 font-bold">
-              <Plus className="w-4 h-4 mr-2" />
-              {t('dashboard.team.btn_new')}
-            </Button>
-          </DialogTrigger>
-          
-          <DialogContent className="bg-[#1e293b] border-white/10 text-white">
-            <DialogHeader>
-              <DialogTitle className="text-white">
-                {editingProf ? t('common.edit') : t('dashboard.team.btn_new')}
-              </DialogTitle>
-            </DialogHeader>
-            <form onSubmit={handleSubmit} className="space-y-4 py-4">
-              <div>
-                <label className="text-xs font-medium mb-1.5 block text-gray-400 uppercase">{t('dashboard.team.label_name')}</label>
-                <Input
-                  value={formData.name}
-                  onChange={(e) => setFormData({ ...formData, name: e.target.value })}
-                  placeholder="Ex: Dra. Ana"
-                  required
-                  className="bg-black/20 border-white/10 text-white"
-                />
-              </div>
-
-              <div>
-                <label className="text-xs font-medium mb-1.5 block text-gray-400 uppercase">{t('dashboard.team.label_capacity')}</label>
-                <Input
-                  type="number"
-                  min="1"
-                  max="20"
-                  value={formData.capacity}
-                  onChange={(e) => setFormData({ ...formData, capacity: e.target.value })}
-                  required
-                  className="bg-black/20 border-white/10 text-white"
-                />
-                <p className="text-[10px] text-gray-500 mt-1">
-                    {t('dashboard.team.hint_capacity')}
-                </p>
-              </div>
-
-              <div className="flex gap-3 pt-2">
-                <Button type="button" variant="ghost" onClick={handleClose} className="flex-1 text-gray-400">{t('common.cancel')}</Button>
-                <Button type="submit" className="flex-1 bg-primary text-gray-900 font-bold">{t('common.save')}</Button>
-              </div>
-            </form>
-          </DialogContent>
-        </Dialog>
+        
+        <div className="text-sm bg-slate-800 px-3 py-1 rounded-full border border-white/10 text-slate-300 font-medium">
+          {professionals?.length || 0} / {plan === 'business' ? '∞' : (plan === 'pro' ? '3' : '1')} {t('dashboard.team.active_count', { defaultValue: 'Ativos' })}
+        </div>
       </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-        {professionals?.map((prof) => (
-          <Card key={prof.id} className="p-5 bg-[#1e293b] border-white/10 shadow-lg group">
-            <div className="flex justify-between items-start">
-               <div className="flex items-center gap-3">
-                   <div className={`w-10 h-10 rounded-full flex items-center justify-center ${prof.is_active ? 'bg-primary/20 text-primary' : 'bg-gray-700 text-gray-500'}`}>
-                        <UserCheck className="w-5 h-5" />
-                   </div>
-                   <div>
-                       <h3 className={`font-bold text-lg ${!prof.is_active && 'text-gray-500 line-through'}`}>{prof.name}</h3>
-                       <span className="text-xs text-gray-400 block">
-                           <strong className="text-white">{prof.capacity}</strong> vagas
-                       </span>
-                   </div>
-               </div>
+      <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-4">
+        {professionals?.map((pro) => (
+          <Card key={pro.id} className="p-4 flex items-center justify-between hover:border-primary/50 transition-all bg-[#1e293b] border-white/10 group">
+            <div className="flex items-center gap-3">
+              <div className="w-10 h-10 rounded-full bg-slate-700 flex items-center justify-center text-white">
+                <User className="w-5 h-5" />
+              </div>
+              <div>
+                <p className="font-bold text-white">{pro.name}</p>
+                <p className="text-xs text-slate-400">{t('dashboard.team.active', { defaultValue: 'Ativo' })}</p>
+              </div>
             </div>
-
-            <div className="mt-6 flex items-center gap-2 border-t border-white/5 pt-4">
-                 <Button 
-                    size="sm" 
-                    variant="outline" 
-                    className={`flex-1 border-white/10 ${prof.is_active ? 'text-green-400 hover:text-green-300' : 'text-gray-500'}`}
-                    onClick={() => toggleActiveMutation.mutate({ id: prof.id, currentState: prof.is_active })}
-                 >
-                    {prof.is_active ? t('dashboard.team.active') : t('dashboard.team.inactive')}
-                 </Button>
-                 
-                 <Button size="icon" variant="ghost" className="text-gray-400 hover:text-white" onClick={() => handleEdit(prof)}>
-                    <Edit className="w-4 h-4" />
-                 </Button>
-                 
-                 <Button size="icon" variant="ghost" className="text-red-400/50 hover:text-red-400 hover:bg-red-500/10" onClick={() => {
-                     if(window.confirm(t('common.confirm_delete'))) deleteMutation.mutate(prof.id)
-                 }}>
-                    <Trash2 className="w-4 h-4" />
-                 </Button>
-            </div>
+            <Button 
+              variant="ghost" 
+              size="icon" 
+              className="text-slate-500 hover:text-red-400 hover:bg-red-900/20"
+              onClick={() => {
+                if (confirm(t('common.confirm_delete', {defaultValue: 'Tem certeza?'}))) deleteMutation.mutate(pro.id);
+              }}
+            >
+              <Trash2 className="w-4 h-4" />
+            </Button>
           </Card>
         ))}
 
-        {(!professionals || professionals.length === 0) && (
-            <div className="col-span-full py-10 text-center border border-dashed border-white/10 rounded-xl">
-                <Users className="w-10 h-10 text-gray-600 mx-auto mb-3" />
-                <p className="text-gray-400">{t('dashboard.team.empty')}</p>
-            </div>
+        {canAdd ? (
+           isCreating ? (
+             <Card className="p-4 border-dashed border-2 border-primary/20 bg-slate-800/50 flex flex-col justify-center gap-2">
+               <form onSubmit={handleAdd}>
+                 <Input 
+                   autoFocus
+                   placeholder={t('dashboard.team.label_name', {defaultValue: 'Nome do profissional'})}
+                   value={newProName}
+                   onChange={e => setNewProName(e.target.value)}
+                   className="bg-white text-slate-900 placeholder:text-slate-400 font-medium"
+                 />
+                 <div className="flex gap-2 mt-2 justify-end">
+                   <Button type="button" variant="ghost" size="sm" onClick={() => setIsCreating(false)} className="text-slate-400 hover:text-white">{t('common.cancel', {defaultValue: 'Cancelar'})}</Button>
+                   <Button type="submit" size="sm" disabled={createMutation.isPending} className="bg-primary text-slate-900 font-bold">{t('common.save', {defaultValue: 'Salvar'})}</Button>
+                 </div>
+               </form>
+             </Card>
+           ) : (
+             <button 
+                onClick={() => setIsCreating(true)}
+                className="group h-full min-h-[80px] rounded-xl border-2 border-dashed border-slate-700 hover:border-primary hover:bg-slate-800 flex items-center justify-center gap-2 transition-all p-4"
+             >
+                <div className="w-8 h-8 rounded-full bg-slate-800 group-hover:bg-primary flex items-center justify-center transition-colors">
+                   <Plus className="w-4 h-4 text-slate-400 group-hover:text-slate-900" />
+                </div>
+                <span className="text-sm font-medium text-slate-500 group-hover:text-primary">{t('dashboard.team.btn_new', {defaultValue: 'Adicionar Profissional'})}</span>
+             </button>
+           )
+        ) : (
+          <div className="rounded-xl border border-amber-900/50 bg-amber-950/20 p-4 flex flex-col items-center justify-center text-center gap-2">
+            <Crown className="w-6 h-6 text-amber-500" />
+            <p className="text-sm font-bold text-amber-500">{t('dashboard.team.limit_free', {defaultValue: 'Limite do plano atingido'})}</p>
+            <Button 
+              size="sm" 
+              className="bg-amber-600 hover:bg-amber-700 text-white w-full border-none"
+              onClick={() => document.getElementById('pricing-section')?.scrollIntoView({ behavior: 'smooth' })}
+            >
+              {t('dashboard.banner.cta', {defaultValue: 'Ver Planos'})}
+            </Button>
+          </div>
         )}
       </div>
     </div>

@@ -2,6 +2,7 @@ export interface User {
   id: string;
   email: string;
   username: string;
+  subscription_status?: 'free' | 'active' | 'past_due' | 'canceled';
 }
 
 export interface Service {

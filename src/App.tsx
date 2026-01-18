@@ -1,4 +1,5 @@
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
+import PaymentSuccessPage from './pages/PaymentSuccessPage';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { Toaster } from 'sonner';
 import { useAuth } from './hooks/useAuth';
@@ -38,6 +39,12 @@ function App() {
           <Route path="/login" element={<LoginPage />} />
           <Route path="/signup" element={<SignupPage />} />
           <Route path="/dashboard" element={<ProtectedRoute><DashboardPage /></ProtectedRoute>} />
+
+          <Route path="/success" element={
+  <ProtectedRoute>
+    <PaymentSuccessPage />
+  </ProtectedRoute>
+} />
 
           {/* Rota Antiga (Mantém funcionando) */}
           <Route path="/book/:userId" element={<BookingPage />} />
