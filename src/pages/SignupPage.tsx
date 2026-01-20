@@ -1,10 +1,34 @@
 import { useState } from 'react';
-import { useNavigate, Link } from 'react-router-dom';
+import { useNavigate, Link, useSearchParams } from 'react-router-dom'; // <--- Adicionado useSearchParams
 import { Button } from '../components/ui/button';
 import { supabase } from '../lib/supabase';
 import { toast } from 'sonner';
 import { Mail, ArrowLeft } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
+
+// MAPA DE LINKS DO STRIPE (Centralizado aqui para o redirecionamento funcionar)
+const STRIPE_LINKS = {
+  pro: {
+    monthly: {
+      pt: 'https://buy.stripe.com/test_8x2eVfb7rg1A93E6qa3gk00',
+      en: 'https://buy.stripe.com/test_8x2bJ36RbaHgdjUbKu3gk01'
+    },
+    yearly: {
+      pt: 'https://buy.stripe.com/test_4gM5kFcbvg1AdjU5m63gk04',
+      en: 'https://buy.stripe.com/test_dRm8wR0sNaHg6Vw15Q3gk05'
+    }
+  },
+  business: {
+    monthly: {
+      pt: 'https://buy.stripe.com/test_dRm6oJ6Rb2aK1Bcg0K3gk03',
+      en: 'https://buy.stripe.com/test_fZueVfejD8z82FgcOy3gk02'
+    },
+    yearly: {
+      pt: 'https://buy.stripe.com/test_cNi6oJ4J34iS93EaGq3gk07',
+      en: 'https://buy.stripe.com/test_eVqaEZdfz8z80x8dSC3gk06'
+    }
+  }
+};
 
 export default function SignupPage() {
   const [email, setEmail] = useState('');
@@ -12,7 +36,9 @@ export default function SignupPage() {
   const [password, setPassword] = useState('');
   const [loading, setLoading] = useState(false);
   const [success, setSuccess] = useState(false);
+  
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams(); // <--- Hook para ler a URL
   const { t, i18n } = useTranslation();
 
   const toggleLanguage = () => {
@@ -20,44 +46,117 @@ export default function SignupPage() {
     i18n.changeLanguage(newLang);
   };
 
-  // Função para criar o link amigável (Slug)
-  // Ex: "Salão da Maria" vira "salao-da-maria"
   const generateSlug = (text: string) => {
     return text
       .toString()
       .toLowerCase()
-      .normalize('NFD') // Separa acentos
-      .replace(/[\u0300-\u036f]/g, '') // Remove acentos
-      .replace(/\s+/g, '-') // Espaços viram hífens
-      .replace(/[^\w-]+/g, '') // Remove caracteres especiais
-      .replace(/--+/g, '-') // Remove hífens duplicados
-      .replace(/^-+/, '') // Remove hífen do começo
-      .replace(/-+$/, ''); // Remove hífen do fim
+      .normalize('NFD') 
+      .replace(/[\u0300-\u036f]/g, '') 
+      .replace(/\s+/g, '-') 
+      .replace(/[^\w-]+/g, '') 
+      .replace(/--+/g, '-') 
+      .replace(/^-+/, '') 
+      .replace(/-+$/, ''); 
   };
 
   const handleRegister = async (e: React.FormEvent) => {
     e.preventDefault();
     setLoading(true);
 
-    const slug = generateSlug(businessName);
+    // Captura intenções de compra da URL
+    const planIntent = searchParams.get('plan'); // 'pro' ou 'business'
+    const cycleIntent = searchParams.get('cycle') as 'monthly' | 'yearly' || 'monthly';
+    const currentLang = i18n.language.startsWith('pt') ? 'pt' : 'en';
+
+    const slug = generateSlug(businessName) + '-' + Math.floor(Math.random() * 10000);
 
     try {
-      const { error } = await supabase.auth.signUp({
+      console.log("1. Criando usuário no Auth...");
+      // 1. Cria o Usuário
+      const { data: authData, error: authError } = await supabase.auth.signUp({
         email,
         password,
         options: { 
-          data: { 
-            business_name: businessName, // Salva o nome oficial
-            slug: slug // Salva o link personalizado
-          } 
+          data: { business_name: businessName, slug: slug } 
         },
       });
 
-      if (error) throw error;
+      if (authError) throw authError;
+      
+      // Se o usuário foi criado
+      if (authData.user) {
+          const userId = authData.user.id;
+          console.log("2. Usuário criado com ID:", userId);
+
+          // 2. CRIAÇÃO MANUAL DA EMPRESA
+          console.log("3. Inserindo empresa manualmente...");
+          
+          const { data: newBiz, error: bizError } = await supabase
+            .from('businesses')
+            .insert({
+                owner_id: userId,
+                name: businessName,
+                slug: slug,
+                plan_type: 'free', // Começa como Free, o Webhook do Stripe atualiza depois
+                subscription_status: 'active'
+            })
+            .select()
+            .single();
+
+          if (bizError) {
+             console.error("Erro ao inserir empresa:", bizError);
+             if (bizError.code !== '23505') throw bizError;
+          }
+
+          // Vincula membro
+          if (newBiz || !bizError) {
+             const businessId = newBiz?.id || (await supabase.from('businesses').select('id').eq('owner_id', userId).single()).data?.id;
+
+             if (businessId) {
+                 console.log("4. Vinculando membro dono...");
+                 const { error: memberError } = await supabase
+                    .from('business_members')
+                    .insert({
+                        user_id: userId,
+                        business_id: businessId,
+                        role: 'owner'
+                    });
+                
+                 if (memberError && memberError.code !== '23505') console.error("Erro ao criar membro:", memberError);
+             }
+          }
+
+          // --- LÓGICA DE REDIRECIONAMENTO PARA PAGAMENTO ---
+          if (planIntent && STRIPE_LINKS[planIntent as keyof typeof STRIPE_LINKS]) {
+              const planLinks = STRIPE_LINKS[planIntent as keyof typeof STRIPE_LINKS];
+              const cycleLinks = planLinks[cycleIntent];
+              const redirectUrl = cycleLinks[currentLang];
+
+              if (redirectUrl) {
+                  toast.success(
+                      currentLang === 'pt' 
+                      ? 'Conta criada! Redirecionando para pagamento...' 
+                      : 'Account created! Redirecting to payment...'
+                  );
+                  
+                  // Monta URL com ID do usuário para o Webhook identificar depois
+                  const finalCheckoutUrl = `${redirectUrl}?client_reference_id=${userId}&prefilled_email=${encodeURIComponent(email)}`;
+                  
+                  setTimeout(() => {
+                      window.location.href = finalCheckoutUrl;
+                  }, 1500);
+                  
+                  return; // Para a execução aqui para não mostrar a tela de sucesso padrão
+              }
+          }
+      }
+
+      // Fluxo padrão (sem plano selecionado ou erro no redirecionamento)
       setSuccess(true);
-      toast.success(i18n.language === 'pt' ? 'Cadastro iniciado!' : 'Sign up started!');
+      toast.success(i18n.language === 'pt' ? 'Conta criada com sucesso!' : 'Account created successfully!');
+      
     } catch (error: any) {
-      console.error(error);
+      console.error("Erro fatal no cadastro:", error);
       toast.error(error.message || t('auth.error_generic'));
     } finally {
       setLoading(false);
@@ -66,10 +165,8 @@ export default function SignupPage() {
 
   return (
     <div className="min-h-screen flex items-center justify-center bg-background p-4 relative overflow-hidden">
-       {/* Background Glow */}
        <div className="absolute bottom-0 right-0 w-[600px] h-[600px] bg-primary/5 blur-[120px] rounded-full pointer-events-none"></div>
 
-       {/* Botão de Idioma */}
        <div className="absolute top-4 right-4 z-20">
          <button onClick={toggleLanguage} className="text-white/50 hover:text-white text-sm font-bold border border-white/10 rounded-lg px-3 py-1.5 transition">
             {i18n.language === 'pt' ? '🇺🇸 EN' : '🇧🇷 PT'}
@@ -117,12 +214,6 @@ export default function SignupPage() {
                 disabled={loading}
                 className="w-full bg-transparent border-0 border-b border-gray-700 text-white placeholder-gray-600 focus:border-primary focus:ring-0 transition-all py-2"
               />
-              {/* Mostra uma prévia do link para o usuário */}
-              {businessName && (
-                <p className="text-[10px] text-gray-500 mt-1">
-                  Seu link será: <strong>Cleverya.app/{generateSlug(businessName)}</strong>
-                </p>
-              )}
             </div>
 
             <div>

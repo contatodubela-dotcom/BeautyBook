@@ -5,7 +5,7 @@ import { useAuth } from '../../hooks/useAuth';
 import { Button } from '../ui/button';
 import { Input } from '../ui/input';
 import { Card } from '../ui/card';
-import { Trash2, Scissors, Plus, Clock, DollarSign, Loader2 } from 'lucide-react';
+import { Trash2, Scissors, Plus, Clock, DollarSign, Loader2, FileText } from 'lucide-react';
 import { toast } from 'sonner';
 import { useTranslation } from 'react-i18next';
 
@@ -14,6 +14,7 @@ interface ServiceForm {
   duration: string;
   price: string;
   category: string;
+  description: string; // Novo campo
 }
 
 export default function ServicesManager() {
@@ -26,7 +27,8 @@ export default function ServicesManager() {
     name: '',
     duration: '30',
     price: '',
-    category: 'Geral'
+    category: 'Geral',
+    description: '' // Inicializa vazio
   });
 
   const { data: services, isLoading } = useQuery({
@@ -45,6 +47,7 @@ export default function ServicesManager() {
         .from('services')
         .select('*')
         .eq('business_id', businessId)
+        .eq('is_active', true)
         .order('name');
 
       if (error) throw error;
@@ -71,6 +74,7 @@ export default function ServicesManager() {
         duration_minutes: durationValue,
         price: priceValue,
         category: newService.category,
+        description: newService.description, // Salva a descrição no banco
         business_id: member.business_id,
         is_active: true
       });
@@ -79,7 +83,7 @@ export default function ServicesManager() {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['services-list'] });
-      setForm({ name: '', duration: '30', price: '', category: 'Geral' });
+      setForm({ name: '', duration: '30', price: '', category: 'Geral', description: '' });
       setIsCreating(false);
       toast.success(t('toasts.service_created'));
     },
@@ -90,12 +94,16 @@ export default function ServicesManager() {
 
   const deleteMutation = useMutation({
     mutationFn: async (id: string) => {
-      const { error } = await supabase.from('services').delete().eq('id', id);
+      const { error } = await supabase
+        .from('services')
+        .update({ is_active: false }) 
+        .eq('id', id);
+        
       if (error) throw error;
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['services-list'] });
-      toast.success(t('toasts.service_deleted'));
+      toast.success(t('toasts.service_deleted', { defaultValue: 'Serviço arquivado.' }));
     },
     onError: () => toast.error(t('toasts.service_delete_error'))
   });
@@ -123,7 +131,9 @@ export default function ServicesManager() {
       {isCreating && (
         <Card className="p-6 border border-white/10 bg-slate-800 animate-in slide-in-from-top-4">
           <form onSubmit={handleSubmit} className="grid md:grid-cols-4 gap-4 items-end">
-            <div className="md:col-span-1 space-y-2">
+            
+            {/* Linha 1: Nome e Categoria */}
+            <div className="md:col-span-2 space-y-2">
               <label className="text-xs font-bold text-slate-400 uppercase">{t('dashboard.services.label_name')}</label>
               <Input 
                 placeholder="Ex: Corte de Cabelo" 
@@ -135,7 +145,7 @@ export default function ServicesManager() {
               />
             </div>
             
-            <div className="md:col-span-1 space-y-2">
+            <div className="md:col-span-2 space-y-2">
               <label className="text-xs font-bold text-slate-400 uppercase">{t('dashboard.services.label_category')}</label>
               <Input 
                 placeholder="Ex: Cabelo" 
@@ -145,7 +155,8 @@ export default function ServicesManager() {
               />
             </div>
 
-            <div className="space-y-2">
+            {/* Linha 2: Preço e Duração */}
+            <div className="md:col-span-2 space-y-2">
               <label className="text-xs font-bold text-slate-400 uppercase">{t('dashboard.services.label_price')}</label>
               <div className="relative">
                  <DollarSign className="absolute left-2 top-2.5 w-4 h-4 text-slate-500" />
@@ -158,7 +169,7 @@ export default function ServicesManager() {
               </div>
             </div>
 
-            <div className="space-y-2">
+            <div className="md:col-span-2 space-y-2">
               <label className="text-xs font-bold text-slate-400 uppercase">{t('dashboard.services.label_duration')}</label>
               <div className="relative">
                  <Clock className="absolute left-2 top-2.5 w-4 h-4 text-slate-500" />
@@ -172,7 +183,21 @@ export default function ServicesManager() {
               </div>
             </div>
 
-            <div className="md:col-span-4 flex justify-end gap-2 mt-2">
+            {/* Linha 3: Descrição (Ocupa tudo) */}
+            <div className="md:col-span-4 space-y-2">
+              <label className="text-xs font-bold text-slate-400 uppercase">{t('dashboard.services.label_desc', {defaultValue: 'Descrição'})}</label>
+              <div className="relative">
+                 <FileText className="absolute left-2 top-2.5 w-4 h-4 text-slate-500" />
+                 <Input 
+                   placeholder={t('dashboard.services.desc_placeholder', {defaultValue: 'Ex: Inclui lavagem e finalização.'})}
+                   value={form.description}
+                   onChange={e => setForm({...form, description: e.target.value})}
+                   className="pl-8 bg-white text-slate-900"
+                 />
+              </div>
+            </div>
+
+            <div className="md:col-span-4 flex justify-end gap-2 mt-4 pt-4 border-t border-white/5">
               <Button type="button" variant="ghost" onClick={() => setIsCreating(false)} className="text-slate-300 hover:text-white">{t('common.cancel')}</Button>
               <Button type="submit" disabled={createMutation.isPending} className="bg-primary text-slate-900 font-bold">{t('common.save')}</Button>
             </div>
@@ -196,7 +221,12 @@ export default function ServicesManager() {
               </div>
               <div>
                 <h3 className="font-bold text-white">{service.name}</h3>
-                <div className="flex items-center gap-3 text-xs text-slate-400 mt-1">
+                {/* Exibe a descrição se existir */}
+                {service.description && (
+                   <p className="text-xs text-slate-500 mt-0.5 max-w-md truncate">{service.description}</p>
+                )}
+                
+                <div className="flex items-center gap-3 text-xs text-slate-400 mt-1.5">
                   <span className="flex items-center gap-1"><Clock className="w-3 h-3" /> {service.duration_minutes} min</span>
                   <span className="w-1 h-1 rounded-full bg-slate-600" />
                   <span className="flex items-center gap-1 font-medium text-primary">
@@ -212,7 +242,7 @@ export default function ServicesManager() {
               size="icon" 
               className="text-slate-500 hover:text-red-400 hover:bg-red-900/20 transition-all"
               onClick={() => {
-                 if (confirm(t('toasts.confirm_delete_service'))) deleteMutation.mutate(service.id);
+                 if (confirm(t('toasts.confirm_delete_service', {defaultValue: 'Arquivar este serviço?'}))) deleteMutation.mutate(service.id);
               }}
             >
               <Trash2 className="w-4 h-4" />

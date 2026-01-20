@@ -5,7 +5,7 @@ import { useAuth } from '../../hooks/useAuth';
 import { format, startOfWeek, endOfWeek, addDays, parseISO } from 'date-fns';
 import { ptBR, enUS } from 'date-fns/locale';
 import { useTranslation } from 'react-i18next';
-import { Calendar as CalendarIcon, Clock, User, CheckCircle, XCircle, MessageCircle, Loader2 } from 'lucide-react';
+import { Calendar as CalendarIcon, Clock, User, CheckCircle, XCircle, MessageCircle, Loader2, Check, DollarSign, Undo2 } from 'lucide-react';
 import { Card } from '../ui/card';
 import { Button } from '../ui/button';
 import { toast } from 'sonner';
@@ -43,7 +43,6 @@ export default function CalendarView() {
   const [endDate, setEndDate] = useState(format(addDays(new Date(), 6), 'yyyy-MM-dd'));
   const dateLocale = i18n.language === 'en' ? enUS : ptBR;
 
-  // 1. Busca nome da empresa para assinar a mensagem
   const { data: businessName } = useQuery({
     queryKey: ['biz-name', user?.id],
     queryFn: async () => {
@@ -90,13 +89,12 @@ export default function CalendarView() {
     }
   };
 
+  // 1. CONFIRMAR AGENDAMENTO
   const handleConfirm = async (app: any) => {
-    // 1. Atualiza no banco
     await supabase.from('appointments').update({ status: 'confirmed' }).eq('id', app.id);
     toast.success(t('toasts.confirmed'));
     refetch();
 
-    // 2. Monta a mensagem
     const message = createMessage('confirm', {
         clientName: app.clients?.name,
         serviceName: app.services?.name,
@@ -106,18 +104,41 @@ export default function CalendarView() {
         businessName: businessName
     });
 
-    // 3. Pergunta se quer enviar
     if (confirm(t('toasts.whatsapp_confirm', { name: app.clients?.name }))) {
         openWhatsApp(app.clients?.phone, message);
     }
   };
 
+  // 2. REALIZAR / CONCLUIR (Vira dinheiro no relatório)
+  const handleComplete = async (app: any) => {
+    await supabase.from('appointments').update({ status: 'completed' }).eq('id', app.id);
+    toast.success(t('toasts.completed', {defaultValue: 'Serviço realizado! Valor computado.'}));
+    refetch();
+  };
+
+  // 3. CANCELAR
   const handleCancel = async (app: any) => {
     if(!confirm(t('toasts.confirm_cancel_app'))) return;
-    
     await supabase.from('appointments').update({ status: 'cancelled' }).eq('id', app.id);
     toast.info(t('toasts.cancelled'));
     refetch();
+  };
+
+  // 4. DESFAZER (Voltar para pendente)
+  const handleUndo = async (app: any) => {
+    await supabase.from('appointments').update({ status: 'pending' }).eq('id', app.id);
+    toast.info(t('toasts.undo', {defaultValue: 'Status revertido para pendente'}));
+    refetch();
+  };
+
+  // Função auxiliar para cores de status
+  const getStatusColor = (status: string) => {
+      switch(status) {
+          case 'confirmed': return 'bg-blue-500/20 text-blue-300 border-blue-500/30';
+          case 'completed': return 'bg-green-500/20 text-green-300 border-green-500/30';
+          case 'cancelled': return 'bg-red-500/10 text-red-400 border-red-500/20';
+          default: return 'bg-yellow-500/20 text-yellow-300 border-yellow-500/30';
+      }
   };
 
   if (isLoading) return <div className="p-12 flex justify-center"><Loader2 className="animate-spin text-white" /></div>;
@@ -132,7 +153,8 @@ export default function CalendarView() {
           <div className="space-y-2 text-sm">
             <div className="flex justify-between"><span className="text-gray-400">{t('dashboard.calendar.total')}:</span><span className="font-bold">{appointments?.length || 0}</span></div>
             <div className="flex justify-between"><span className="text-gray-400">{t('dashboard.calendar.pending')}:</span><span className="font-bold text-yellow-500">{appointments?.filter((a:any) => a.status === 'pending').length}</span></div>
-            <div className="flex justify-between"><span className="text-gray-400">{t('dashboard.calendar.confirmed')}:</span><span className="font-bold text-green-500">{appointments?.filter((a:any) => a.status === 'confirmed').length}</span></div>
+            <div className="flex justify-between"><span className="text-gray-400">{t('dashboard.calendar.confirmed')}:</span><span className="font-bold text-blue-400">{appointments?.filter((a:any) => a.status === 'confirmed').length}</span></div>
+            <div className="flex justify-between"><span className="text-gray-400">{t('dashboard.calendar.completed', {defaultValue: 'Realizados'})}:</span><span className="font-bold text-green-500">{appointments?.filter((a:any) => a.status === 'completed').length}</span></div>
           </div>
         </Card>
       </div>
@@ -151,17 +173,20 @@ export default function CalendarView() {
         ) : (
           <div className="space-y-3">
             {appointments?.map((app: any) => (
-              <Card key={app.id} className="p-4 flex flex-col md:flex-row gap-4 justify-between items-start md:items-center hover:bg-white/5 transition-all bg-[#1e293b] border-white/10">
+              <Card 
+                key={app.id} 
+                className={`p-4 flex flex-col md:flex-row gap-4 justify-between items-start md:items-center transition-all bg-[#1e293b] border hover:bg-slate-800 ${app.status === 'cancelled' ? 'border-red-900/30 opacity-60' : app.status === 'completed' ? 'border-green-900/50' : 'border-white/10'}`}
+              >
                 <div className="flex gap-4">
-                  <div className="flex flex-col items-center justify-center px-3 py-2 bg-black/30 rounded-lg min-w-[90px] text-center border border-white/5">
-                    <span className="text-xs font-bold uppercase text-gray-400">{format(parseISO(app.appointment_date), 'dd MMM', { locale: dateLocale })}</span>
-                    <span className="text-xl font-bold text-white">{app.appointment_time?.slice(0, 5)}</span>
-                    <span className={`text-[10px] uppercase font-bold px-2 py-0.5 rounded-full mt-1 ${app.status === 'confirmed' ? 'bg-green-500/20 text-green-300' : app.status === 'pending' ? 'bg-yellow-500/20 text-yellow-300' : 'bg-red-500/20 text-red-300'}`}>{app.status}</span>
+                  <div className={`flex flex-col items-center justify-center px-3 py-2 rounded-lg min-w-[90px] text-center border ${getStatusColor(app.status)}`}>
+                    <span className="text-xs font-bold uppercase opacity-80">{format(parseISO(app.appointment_date), 'dd MMM', { locale: dateLocale })}</span>
+                    <span className="text-xl font-bold">{app.appointment_time?.slice(0, 5)}</span>
+                    <span className="text-[10px] uppercase font-bold mt-1 tracking-wide">{t(`status.${app.status}`, {defaultValue: app.status})}</span>
                   </div>
                   <div>
-                    <h3 className="font-bold text-lg text-white">{app.clients?.name || 'Cliente deletado'}</h3>
+                    <h3 className={`font-bold text-lg ${app.status === 'cancelled' ? 'text-gray-500 line-through' : 'text-white'}`}>{app.clients?.name || 'Cliente deletado'}</h3>
                     <div className="flex items-center gap-2 text-sm text-gray-400 mt-1">
-                      <span className="flex items-center gap-1"><Clock className="w-3 h-3" /> {app.services?.name}</span>
+                      <span className="flex items-center gap-1"><Clock className="w-3 h-3" /> {app.services?.name || 'Serviço excluído'}</span>
                       <span>•</span>
                       <span className="flex items-center gap-1 text-primary font-medium bg-primary/10 px-1.5 py-0.5 rounded text-xs"><User className="w-3 h-3" /> {app.professionals?.name}</span>
                     </div>
@@ -171,35 +196,65 @@ export default function CalendarView() {
                 {/* AÇÕES */}
                 <div className="flex items-center gap-2 w-full md:w-auto pt-4 md:pt-0 border-t border-white/10 md:border-t-0 mt-2 md:mt-0">
                   
-                  <Button 
-                    size="icon" 
-                    variant="ghost" 
-                    className="text-green-400 hover:bg-green-900/20"
-                    title="Enviar mensagem"
-                    onClick={() => {
-                        const msg = createMessage('reminder', {
-                            clientName: app.clients?.name,
-                            serviceName: app.services?.name,
-                            date: app.appointment_date,
-                            time: app.appointment_time
-                        });
-                        openWhatsApp(app.clients?.phone, msg);
-                    }}
-                  >
-                    <MessageCircle className="w-5 h-5" />
-                  </Button>
+                  {/* WhatsApp (Sempre visível exceto se cancelado) */}
+                  {app.status !== 'cancelled' && (
+                    <Button 
+                        size="icon" 
+                        variant="ghost" 
+                        className="text-slate-400 hover:text-green-400 hover:bg-green-900/20"
+                        title="Enviar mensagem"
+                        onClick={() => {
+                            const msg = createMessage('reminder', {
+                                clientName: app.clients?.name,
+                                serviceName: app.services?.name,
+                                date: app.appointment_date,
+                                time: app.appointment_time
+                            });
+                            openWhatsApp(app.clients?.phone, msg);
+                        }}
+                    >
+                        <MessageCircle className="w-5 h-5" />
+                    </Button>
+                  )}
 
+                  {/* AÇÕES PARA STATUS: PENDENTE */}
                   {app.status === 'pending' && (
-                    <Button size="sm" className="bg-green-600 hover:bg-green-700 text-white" onClick={() => handleConfirm(app)}>
-                      <CheckCircle className="w-4 h-4 mr-2" /> {t('dashboard.overview.btn_confirm')}
+                    <>
+                        <Button size="sm" className="bg-blue-600 hover:bg-blue-700 text-white border-none" onClick={() => handleConfirm(app)}>
+                        <CheckCircle className="w-4 h-4 mr-2" /> {t('common.confirm', {defaultValue: 'Confirmar'})}
+                        </Button>
+                        <Button size="icon" variant="outline" className="text-red-400 hover:bg-red-950/30 border-red-900/50" onClick={() => handleCancel(app)}>
+                        <XCircle className="w-4 h-4" />
+                        </Button>
+                    </>
+                  )}
+
+                  {/* AÇÕES PARA STATUS: CONFIRMADO */}
+                  {app.status === 'confirmed' && (
+                    <>
+                        <Button size="sm" className="bg-green-600 hover:bg-green-700 text-white border-none shadow-lg shadow-green-900/20" onClick={() => handleComplete(app)}>
+                            <DollarSign className="w-4 h-4 mr-1" /> {t('common.complete', {defaultValue: 'Realizar'})}
+                        </Button>
+                        <Button size="icon" variant="outline" className="text-red-400 hover:bg-red-950/30 border-red-900/50" onClick={() => handleCancel(app)}>
+                            <XCircle className="w-4 h-4" />
+                        </Button>
+                    </>
+                  )}
+
+                   {/* AÇÕES PARA STATUS: REALIZADO (Opção de desfazer) */}
+                   {app.status === 'completed' && (
+                    <Button size="sm" variant="ghost" className="text-gray-500 hover:text-white" onClick={() => handleUndo(app)}>
+                        <Undo2 className="w-4 h-4 mr-2" /> {t('common.undo', {defaultValue: 'Desfazer'})}
+                    </Button>
+                  )}
+
+                   {/* AÇÕES PARA STATUS: CANCELADO (Opção de desfazer) */}
+                   {app.status === 'cancelled' && (
+                    <Button size="sm" variant="ghost" className="text-gray-500 hover:text-white" onClick={() => handleUndo(app)}>
+                        <Undo2 className="w-4 h-4 mr-2" /> {t('common.restore', {defaultValue: 'Restaurar'})}
                     </Button>
                   )}
                   
-                  {['pending', 'confirmed'].includes(app.status) && (
-                    <Button size="sm" variant="outline" className="text-red-400 hover:bg-red-950/30 border-red-900/50" onClick={() => handleCancel(app)}>
-                      <XCircle className="w-4 h-4" />
-                    </Button>
-                  )}
                 </div>
               </Card>
             ))}

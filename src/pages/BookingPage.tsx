@@ -10,6 +10,7 @@ import { toast } from 'sonner';
 import { format, addDays, parseISO } from 'date-fns';
 import { ptBR, enUS } from 'date-fns/locale';
 import { useTranslation } from 'react-i18next';
+import NotFound from './NotFound';
 
 // --- TIPAGEM INTERNA ---
 interface BusinessInfo {
@@ -73,7 +74,7 @@ export default function BookingPage() {
                 name: data.name,
                 slug: data.slug,
                 plan_type: data.plan_type,
-                banner_url: data.banner_url // CORREÇÃO: Banner carregado corretamente
+                banner_url: data.banner_url
             });
             setLoadingProfile(false);
             return;
@@ -81,7 +82,7 @@ export default function BookingPage() {
         }
 
         // 2. FALLBACK: Tabela Antiga
-        let query = supabase.from('business_profiles').select('*');
+        let query = supabase.from('businesses').select('*');
         if (paramSlug) query = query.eq('slug', paramSlug.toLowerCase());
         else if (paramId) query = query.eq('user_id', paramId);
         
@@ -113,8 +114,19 @@ export default function BookingPage() {
     resolveProfile();
   }, [paramId, paramSlug]);
 
-  if (loadingProfile) return <div className="min-h-screen flex items-center justify-center bg-[#f8fafc]"><div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary"></div></div>;
-  if (!businessData) return <div className="min-h-screen flex flex-col items-center justify-center bg-[#f8fafc] text-slate-500"><Sparkles className="w-12 h-12 mb-4 text-slate-300" /><h2 className="text-xl font-bold">Página não encontrada</h2></div>;
+  if (loadingProfile) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-[#f8fafc]">
+        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary"></div>
+      </div>
+    );
+  }
+
+  // --- CORREÇÃO AQUI ---
+  // Se terminou de carregar e NÃO achou o business, retorna o componente NotFound oficial
+  if (!businessData) {
+    return <NotFound />;
+  }
 
   return <BookingContent business={businessData} />;
 }
@@ -202,8 +214,6 @@ function BookingContent({ business }: { business: BusinessInfo }) {
       let cat = service.category;
 
       // 2. Lógica de Tradução:
-      // Se não tiver categoria OU se a categoria for exatamente "Geral",
-      // usamos a tradução do i18n.
       if (!cat || cat === 'Geral') {
           cat = t('booking.category_general', { defaultValue: 'Geral' });
       }
@@ -212,7 +222,7 @@ function BookingContent({ business }: { business: BusinessInfo }) {
       acc[cat].push(service);
       return acc;
     }, {} as Record<string, Service[]>);
-  }, [services, t, i18n.language]); // Adicionamos i18n.language para recalcular ao trocar idioma
+  }, [services, t, i18n.language]);
 
   const { data: professionals } = useQuery({
     queryKey: ['public-professionals', business.id],
@@ -316,7 +326,7 @@ function BookingContent({ business }: { business: BusinessInfo }) {
          clientId = newClient.id;
       }
 
-      // Verificação de Bloqueio (Simplificada)
+      // Verificação de Bloqueio
       const { data: blocked } = await supabase.from('blocked_clients').select('id').eq('client_id', clientId).maybeSingle();
       if (blocked) throw new Error('Blocked');
 
@@ -404,7 +414,6 @@ function BookingContent({ business }: { business: BusinessInfo }) {
           <div className="mt-4">
             <h1 className="text-3xl font-bold text-slate-900 tracking-tight leading-tight">{businessName}</h1>
             
-            {/* CORREÇÃO: Badge Premium só aparece para planos PRO/BUSINESS */}
             {isPremium && (
                 <div className="flex items-center justify-center gap-1 mt-2 text-[#d4af37] font-bold text-xs uppercase tracking-widest animate-pulse">
                     <Crown className="w-3 h-3 fill-current" />

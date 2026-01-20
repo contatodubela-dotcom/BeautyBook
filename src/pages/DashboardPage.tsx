@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react';
 import { useQuery } from '@tanstack/react-query'; 
 import { supabase } from '../lib/supabase';
 import { useTranslation } from 'react-i18next';
-import { Calendar, LayoutDashboard, Settings, Sparkles, Users, ClipboardList, Share2, LogOut, FileBarChart, Crown } from 'lucide-react';
+import { Calendar, LayoutDashboard, Settings, Sparkles, Users, ClipboardList, Share2, LogOut, FileBarChart, Crown, HelpCircle } from 'lucide-react';
 import DashboardOverview from '../components/dashboard/DashboardOverview';
 import CalendarView from '../components/dashboard/CalendarView';
 import ServicesManager from '../components/dashboard/ServicesManager';
@@ -16,6 +16,7 @@ import { useAuth } from '../hooks/useAuth';
 import { useIsMobile } from '../hooks/use-mobile';
 import { toast } from 'sonner';
 import { useLocation, useNavigate } from 'react-router-dom';
+import OnboardingModal from '../components/dashboard/OnboardingModal';
 
 type TabType = 'overview' | 'calendar' | 'services' | 'availability' | 'clients' | 'reports' | 'professionals';
 
@@ -47,6 +48,37 @@ export default function DashboardPage() {
     }
   }, [location, navigate]);
 
+  const handleManageSubscription = async () => {
+    const loadingToast = toast.loading(t('toasts.opening_portal', { defaultValue: 'Conectando ao Stripe...' }));
+    try {
+      const { data, error } = await supabase.functions.invoke('create-portal-session');
+
+      if (error) throw error;
+
+      if (data?.error) {
+        throw new Error(data.error); 
+      }
+
+      if (data?.url) {
+        toast.dismiss(loadingToast);
+        window.location.href = data.url;
+      } else {
+        throw new Error('URL de redirecionamento não encontrada.');
+      }
+      
+    } catch (err: any) {
+      toast.dismiss(loadingToast);
+      console.error("Erro detalhado:", err);
+      toast.error(t('toasts.error_portal', { defaultValue: 'Erro ao abrir portal' }));
+    }
+  };
+
+  // Função para abrir o tutorial manualmente (Ajuda)
+  const handleOpenTutorial = () => {
+    localStorage.removeItem('cleverya_tutorial_seen');
+    window.location.reload();
+  };
+
   const tabs = [
     { id: 'overview' as TabType, label: t('dashboard.tabs.overview', { defaultValue: 'Visão Geral' }), icon: LayoutDashboard },
     { id: 'calendar' as TabType, label: t('dashboard.tabs.calendar', { defaultValue: 'Agenda' }), icon: Calendar },
@@ -60,7 +92,21 @@ export default function DashboardPage() {
   const { data: businessData } = useQuery({
     queryKey: ['my-business-info', user?.id],
     queryFn: async () => {
-      const { data } = await supabase
+      if (!user?.id) return null;
+
+      // 1. TENTATIVA PRINCIPAL: Buscar direto na tabela businesses (Sou o Dono?)
+      const { data: ownerBusiness } = await supabase
+        .from('businesses')
+        .select('slug, name, plan_type, subscription_status')
+        .eq('owner_id', user.id)
+        .maybeSingle();
+
+      if (ownerBusiness) {
+        return ownerBusiness;
+      }
+
+      // 2. SEGUNDA TENTATIVA: Buscar na tabela de membros (Sou funcionário?)
+      const { data: memberData } = await supabase
         .from('business_members')
         .select(`
           business:businesses (
@@ -70,15 +116,17 @@ export default function DashboardPage() {
             subscription_status
           )
         `)
-        .eq('user_id', user?.id)
+        .eq('user_id', user.id)
         .maybeSingle();
       
-      if (data && data.business) {
-        return Array.isArray(data.business) ? data.business[0] : data.business;
+      if (memberData && memberData.business) {
+        return Array.isArray(memberData.business) ? memberData.business[0] : memberData.business;
       }
+
       return null;
     },
     enabled: !!user,
+    retry: 1
   });
 
   const handleShareUrl = () => {
@@ -118,8 +166,6 @@ export default function DashboardPage() {
               <div className="flex flex-col justify-center">
                 <h1 className="font-bold text-lg leading-tight text-white">Cleverya</h1>
                 
-                {/* --- CORREÇÃO APLICADA AQUI --- */}
-                {/* Removida a verificação !isMobile e adicionados estilos de responsividade */}
                 <div className="flex items-center gap-2">
                   <p className="text-[11px] text-gray-400 uppercase tracking-widest font-medium truncate max-w-[120px] md:max-w-none">
                     {businessData?.name || user?.email || 'Profissional'}
@@ -129,19 +175,45 @@ export default function DashboardPage() {
                       {displayPlan}
                   </span>
                 </div>
-                {/* --- FIM DA CORREÇÃO --- */}
-
               </div>
             </div>
 
             <div className="flex items-center gap-3">
+              {/* BOTÃO DE AJUDA / TUTORIAL */}
+              <Button 
+                onClick={handleOpenTutorial}
+                variant="ghost" 
+                size="icon" 
+                className="h-9 w-9 text-gray-400 hover:text-white hover:bg-white/10 hidden md:flex"
+                title={t('common.help', { defaultValue: 'Ajuda / Tutorial' })}
+              >
+                <HelpCircle className="w-5 h-5" />
+              </Button>
+
               <Button onClick={toggleLanguage} variant="ghost" size="sm" className="text-xs font-bold text-gray-400 hover:text-white">
                 {i18n.language === 'pt' ? '🇺🇸 EN' : '🇧🇷 PT'}
               </Button>
 
-              <Button onClick={handleShareUrl} variant="outline" size="sm" className="gap-2 border-primary/30 hover:bg-primary hover:text-gray-900 text-primary h-9 transition-all bg-transparent">
+              {/* BOTÃO LINK DE AGENDAMENTO */}
+              <Button 
+                onClick={handleShareUrl} 
+                variant="ghost" 
+                size="sm" 
+                className="hidden md:flex items-center gap-2 text-primary hover:text-white hover:bg-white/10"
+              >
                 <Share2 className="w-4 h-4" />
-                <span className="hidden sm:inline">{t('dashboard.link_btn')}</span>
+                <span className="hidden lg:inline">{t('dashboard.link_btn', { defaultValue: 'Link de Agendamento' })}</span>
+              </Button>
+
+              {/* BOTÃO ASSINATURA */}
+              <Button onClick={handleManageSubscription} variant="outline" size="sm" className="gap-2 border-primary/30 hover:bg-primary hover:text-gray-900 text-primary h-9 transition-all bg-transparent">
+                <Crown className="w-4 h-4 text-yellow-500" />
+                <span className="hidden sm:inline">
+                    {t('dashboard.manage_subscription')}
+                </span>
+                <span className="sm:hidden">
+                    {t('dashboard.subscription_short')}
+                </span>
               </Button>
 
               <Button variant="ghost" onClick={logout} size="icon" className="h-9 w-9 text-gray-400 hover:text-red-400 hover:bg-red-500/10">
@@ -221,6 +293,10 @@ export default function DashboardPage() {
           })}
         </div>
       </div>
+
+      {/* COMPONENTE DO TUTORIAL - INVISÍVEL ATÉ ATIVAR (OU 1º ACESSO) */}
+      <OnboardingModal />
+
     </div>
   );
 }

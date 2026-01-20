@@ -28,45 +28,40 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
 
   const fetchUserStatus = async (currentUser: User) => {
     try {
-      // Timeout de segurança: Se o banco não responder em 5s, libera o acesso Free
-      const timeoutPromise = new Promise((_, reject) => 
-        setTimeout(() => reject(new Error('Timeout')), 5000)
-      );
-
-      // Busca dados reais no banco
-      const dbPromise = supabase
+      // 1. Busca o vínculo com a empresa (business_members)
+      const { data: memberData, error: memberError } = await supabase
         .from('business_members')
-        .select(`
-          business:businesses (
-            plan_type,
-            subscription_status
-          )
-        `)
+        .select('business_id')
         .eq('user_id', currentUser.id)
         .maybeSingle();
 
-      const { data, error } = await Promise.race([dbPromise, timeoutPromise]) as any;
-
-      if (error && error.message !== 'Timeout') throw error;
-
-      let plan = 'free';
-      let status = 'active';
-
-      if (data?.business) {
-        const biz = Array.isArray(data.business) ? data.business[0] : data.business;
-        plan = biz.plan_type || 'free';
-        status = biz.subscription_status || 'active';
+      if (memberError || !memberData) {
+        // Se não encontrar, assume Free
+        console.warn("Usuário sem empresa vinculada:", memberError);
+        setUser({ ...currentUser, subscription_status: 'active', plan_type: 'free' });
+        return;
       }
 
-      setUser({
-        ...currentUser,
-        subscription_status: status,
-        plan_type: plan
-      });
+      // 2. Busca os dados da empresa (businesses)
+      const { data: businessData, error: businessError } = await supabase
+        .from('businesses')
+        .select('plan_type, subscription_status')
+        .eq('id', memberData.business_id)
+        .maybeSingle();
+
+      if (businessError) {
+         console.warn("Erro ao buscar dados da empresa:", businessError);
+         setUser({ ...currentUser, subscription_status: 'active', plan_type: 'free' });
+      } else {
+         setUser({ 
+            ...currentUser, 
+            subscription_status: businessData?.subscription_status || 'active', 
+            plan_type: businessData?.plan_type || 'free' 
+         });
+      }
 
     } catch (err) {
-      console.warn("Auth: Usando perfil fallback devido a erro ou timeout.", err);
-      // Fallback seguro: Libera como Free para não travar o usuário
+      console.error("Erro fatal no useAuth:", err);
       setUser({ ...currentUser, subscription_status: 'active', plan_type: 'free' });
     } finally {
       setLoading(false);
@@ -93,7 +88,6 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
       setSession(session);
       
       if (session?.user) {
-        // Evita re-buscar se o usuário já estiver carregado
         setUser(prev => {
             if (prev?.id === session.user.id) return prev;
             fetchUserStatus(session.user);
@@ -115,6 +109,7 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
     await supabase.auth.signOut();
     setSession(null);
     setUser(null);
+    localStorage.clear();
   };
 
   return (

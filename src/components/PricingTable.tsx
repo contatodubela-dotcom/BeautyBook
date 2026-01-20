@@ -3,11 +3,11 @@ import { useTranslation } from 'react-i18next';
 import { Check, Sparkles, Building2 } from 'lucide-react';
 import { Button } from './ui/button';
 import { cn } from '../lib/utils';
-import { useAuth } from '../hooks/useAuth'; // <--- IMPORTANTE
+import { useAuth } from '../hooks/useAuth'; 
 
 export function PricingTable() {
   const { t, i18n } = useTranslation();
-  const { user } = useAuth(); // <--- IMPORTANTE: Pegamos o usuário logado
+  const { user } = useAuth(); // Pega o usuário logado
   const [billingCycle, setBillingCycle] = useState<'monthly' | 'yearly'>('monthly');
   
   const isBRL = i18n.language?.startsWith('pt');
@@ -16,12 +16,13 @@ export function PricingTable() {
   const plans = [
     {
       name: 'Pro',
+      id: 'pro', // Identificador para a URL
       description: isBRL ? 'Para profissionais independentes em crescimento.' : 'For growing independent professionals.',
       price: {
         monthly: isBRL ? '29,90' : '9.90',
         yearly: isBRL ? '269,10' : '89.10',
       },
-      // ATENÇÃO: Substitua estes links pelos seus LINKS REAIS do Stripe (Modo Teste ou Produção)
+      // Links diretos para quando o usuário JÁ está logado
       links: {
         monthly: isBRL 
           ? 'https://buy.stripe.com/test_8x2eVfb7rg1A93E6qa3gk00' 
@@ -43,6 +44,7 @@ export function PricingTable() {
     },
     {
       name: 'Business',
+      id: 'business', // Identificador para a URL
       description: isBRL ? 'Para clínicas e estabelecimentos maiores.' : 'For clinics and larger establishments.',
       price: {
         monthly: isBRL ? '59,90' : '19.90',
@@ -110,14 +112,19 @@ export function PricingTable() {
           const Icon = plan.icon;
           const price = billingCycle === 'monthly' ? plan.price.monthly : plan.price.yearly;
           
-          // --- A MÁGICA ACONTECE AQUI ---
+          // Link direto do Stripe (caso já esteja logado)
           const rawLink = billingCycle === 'monthly' ? plan.links.monthly : plan.links.yearly;
           
-          // Adicionamos o ?client_reference_id=ID_DO_USUARIO
-          // Isso diz ao Stripe: "Quem está pagando é esse usuário aqui"
-          const checkoutUrl = user?.id 
-            ? `${rawLink}?client_reference_id=${user.id}` 
-            : rawLink;
+          // Lógica Inteligente de Redirecionamento
+          let actionUrl;
+
+          if (user?.id) {
+             // 1. Usuário LOGADO: Vai direto para o Stripe com o ID dele
+             actionUrl = `${rawLink}?client_reference_id=${user.id}&prefilled_email=${user.email}`;
+          } else {
+             // 2. Usuário NÃO LOGADO: Vai para o cadastro levando o plano e o ciclo na URL
+             actionUrl = `/signup?plan=${plan.id}&cycle=${billingCycle}`;
+          }
 
           return (
             <div 
@@ -166,8 +173,9 @@ export function PricingTable() {
               </div>
 
               <a 
-                href={checkoutUrl} 
-                target="_blank" 
+                href={actionUrl}
+                // Se for link do Stripe (começa com http), abre nova aba. Se for rota interna (/signup), mesma aba.
+                target={user?.id ? "_blank" : "_self"}
                 rel="noopener noreferrer"
                 className="block w-full"
               >

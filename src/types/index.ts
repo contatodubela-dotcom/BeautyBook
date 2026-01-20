@@ -5,12 +5,24 @@ export interface User {
   subscription_status?: 'free' | 'active' | 'past_due' | 'canceled';
 }
 
+// Interface que faltava para a tabela 'businesses'
+export interface Business {
+  id: string;
+  owner_id: string; // Importante: aqui é owner_id, não user_id
+  name: string;
+  slug: string;
+  banner_url?: string;
+  plan_type?: 'free' | 'pro' | 'business';
+  subscription_status?: string;
+  created_at: string;
+}
+
 export interface Service {
   id: string;
-  user_id: string;
+  user_id: string; // Se possível, migre para business_id no futuro
   name: string;
-  category?: string;    // Novo campo para agrupar serviços
-  description?: string; // Novo campo para detalhes
+  category?: string;    
+  description?: string; 
   duration_minutes: number;
   price?: number;
   is_active: boolean;
@@ -19,7 +31,7 @@ export interface Service {
 
 export interface AvailabilitySetting {
   id: string;
-  user_id: string;
+  business_id: string; // CORREÇÃO: Vincula à empresa, não ao usuário direto
   day_of_week: number;
   start_time: string;
   end_time: string;
@@ -55,8 +67,8 @@ export interface Appointment {
   updated_at: string;
   client?: Client;
   service?: Service;
-  professional_id?: string; // Novo campo opcional por enquanto
-  professionals?: Professional; // Para o join
+  professional_id?: string;
+  professionals?: Professional;
 }
 
 export interface BlockedClient {

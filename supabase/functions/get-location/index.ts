@@ -1,3 +1,4 @@
+// deno-lint-ignore-file no-import-prefix require-await
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts"
 
 const corsHeaders = {
@@ -10,6 +11,7 @@ serve(async (req) => {
   if (req.method === 'OPTIONS') {
     return new Response('ok', { headers: corsHeaders })
   }
+
 
   // O Cloudflare (e o Supabase Edge) injetam esse header automaticamente
   // Se estiver rodando local, ele pode vir vazio, então assumimos 'US' para teste

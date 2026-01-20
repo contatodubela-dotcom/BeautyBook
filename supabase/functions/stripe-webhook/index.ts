@@ -1,83 +1,85 @@
+// deno-lint-ignore-file no-import-prefix no-explicit-any
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts"
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
-import Stripe from 'https://esm.sh/stripe@12.0.0?target=deno'
+// ATUALIZADO: Usando versão NPM estável para evitar o erro runMicrotasks
+import Stripe from 'npm:stripe@^14.21.0'
 
-// Configurações
 const stripe = new Stripe(Deno.env.get('STRIPE_SECRET_KEY') as string, {
-  apiVersion: '2022-11-15',
+  apiVersion: '2023-10-16', // API version atualizada
   httpClient: Stripe.createFetchHttpClient(),
 })
-const cryptoProvider = Stripe.createSubtleCryptoProvider()
 
+// cryptoProvider removido pois a versão NPM gerencia isso nativamente agora
 const supabaseUrl = Deno.env.get('SUPABASE_URL') as string
 const supabaseServiceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') as string
 const supabase = createClient(supabaseUrl, supabaseServiceKey)
 
-console.log('Stripe Webhook function loaded')
+console.log('✅ Stripe Webhook Loaded (NPM Version)')
 
-serve(async (req) => {
+serve(async (req: Request) => {
   const signature = req.headers.get('Stripe-Signature')
   const body = await req.text()
 
   let event
   try {
+    // Validação de assinatura simplificada pela lib nova
     event = await stripe.webhooks.constructEventAsync(
       body,
       signature!,
-      Deno.env.get('STRIPE_WEBHOOK_SIGNING_SECRET')!,
-      undefined,
-      cryptoProvider
+      Deno.env.get('STRIPE_WEBHOOK_SIGNING_SECRET')!
     )
-  } catch (err) {
-    console.error(`⚠️  Webhook signature verification failed.`, err.message)
+  } catch (err: any) {
+    console.error(`❌ Webhook signature failed:`, err.message)
     return new Response(err.message, { status: 400 })
   }
 
-  // LOGICA PRINCIPAL
+  console.log(`🔔 Evento recebido: ${event.type}`)
+
   try {
     switch (event.type) {
-      // 1. OCORRE NA PRIMEIRA COMPRA (Checkout)
+      // CENÁRIO 1: Primeira Compra
       case 'checkout.session.completed': {
         const session = event.data.object
-        const userId = session.client_reference_id // O ID do usuário que enviamos no botão de compra
+        const userId = session.client_reference_id
         const customerId = session.customer
-        const subscriptionId = session.subscription
         
-        console.log(`💰 Checkout completed for user: ${userId}`)
+        console.log(`💰 Checkout completado para User: ${userId}, Customer: ${customerId}`)
 
-        if (userId && customerId) {
-          // Busca detalhes da assinatura para saber qual produto foi comprado
-          const subscription = await stripe.subscriptions.retrieve(subscriptionId as string)
-          const planType = getPlanTypeFromProduct(subscription) // Função auxiliar abaixo
-
-          // ATUALIZAÇÃO SEGURA: Busca o Business onde este user é o DONO (owner_id)
-          const { error } = await supabase
-            .from('businesses')
-            .update({
-              stripe_customer_id: customerId,
-              subscription_status: 'active',
-              plan_type: planType,
-              subscription_end_date: new Date(subscription.current_period_end * 1000).toISOString(),
-            })
-            .eq('owner_id', userId) 
-
-          if (error) console.error('❌ Error updating business from checkout:', error)
-          else console.log('✅ Business updated successfully from checkout')
+        if (!userId) {
+            console.error("⚠️ checkout.session.completed sem client_reference_id!")
+            break;
         }
+
+        const planType = getPlanTypeFromAmount(session.amount_total);
+        
+        const { error } = await supabase
+          .from('businesses')
+          .update({ 
+              stripe_customer_id: customerId,
+              plan_type: planType,
+              subscription_status: 'active'
+          })
+          .eq('owner_id', userId)
+        
+        if (error) console.error('❌ Erro ao atualizar business:', error)
+        else console.log('✅ Business atualizado com sucesso (Checkout)')
         break
       }
 
-      // 2. OCORRE QUANDO A ASSINATURA RENOVA, CANCELA OU MUDA
+      // CENÁRIO 2: Renovação ou Atualização
       case 'customer.subscription.updated':
       case 'customer.subscription.deleted': {
         const subscription = event.data.object
-        const customerId = subscription.customer
         const status = subscription.status
-        const planType = getPlanTypeFromProduct(subscription)
+        const customerId = subscription.customer
+        
+        console.log(`🔄 Atualização de assinatura para Customer: ${customerId}, Status: ${status}`)
 
-        console.log(`🔄 Subscription updated: ${customerId} -> ${status}`)
+        let planType = 'free';
+        if (status === 'active' || status === 'trialing') {
+             planType = getPlanTypeFromProduct(subscription);
+        }
 
-        // Aqui buscamos direto pelo ID do Stripe, pois já foi salvo no passo 1
         const { error } = await supabase
           .from('businesses')
           .update({
@@ -87,13 +89,19 @@ serve(async (req) => {
           })
           .eq('stripe_customer_id', customerId)
 
-        if (error) console.error('❌ Error updating business subscription:', error)
-        else console.log('✅ Business subscription updated')
+        if (error) console.error('❌ Erro ao atualizar business (Subscription):', error)
+        else console.log('✅ Business atualizado com sucesso (Subscription)')
         break
       }
+      
+      case 'invoice.payment_succeeded': {
+        const invoice = event.data.object;
+        console.log(`💸 Fatura paga: ${invoice.amount_paid} por Customer: ${invoice.customer}`);
+        break;
+      }
     }
-  } catch (err) {
-    console.error('Webhook processing error:', err)
+  } catch (err: any) {
+    console.error('❌ Erro no processamento do Webhook:', err)
     return new Response('Webhook handler failed', { status: 400 })
   }
 
@@ -102,19 +110,16 @@ serve(async (req) => {
   })
 })
 
-// --- HELPER: Descobre se é PRO ou BUSINESS baseado no preço/produto ---
-// Você pode ajustar esses IDs ou nomes conforme seus produtos no Stripe
-function getPlanTypeFromProduct(subscription: any): string {
-  // Tenta pegar do metadata se você configurou lá
-  const metadataPlan = subscription.metadata?.plan_type
-  if (metadataPlan) return metadataPlan
+function getPlanTypeFromAmount(amount: number | null): string {
+    if (!amount) return 'free';
+    if (amount >= 5900) return 'business'; 
+    if (amount >= 2900) return 'pro';
+    return 'free';
+}
 
-  // Lógica de fallback baseada no valor (Simplificado para seu caso)
-  // Olhando seus links: Pro ~29.90, Business ~59.90
+function getPlanTypeFromProduct(subscription: any): string {
   const priceAmount = subscription.items?.data[0]?.price?.unit_amount || 0
-  
-  if (priceAmount > 4000) return 'business' // Acima de R$ 40,00
-  if (priceAmount > 0) return 'pro'         // Qualquer outro valor pago
-  
+  if (priceAmount >= 5900) return 'business'
+  if (priceAmount >= 2900) return 'pro'
   return 'free'
 }

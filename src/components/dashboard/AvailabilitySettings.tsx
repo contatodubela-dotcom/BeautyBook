@@ -42,23 +42,22 @@ export default function AvailabilitySettings() {
 
   // --- BUSCA DADOS ---
   const getBusinessId = async () => {
-    const { data } = await supabase.from('business_members').select('business_id').eq('user_id', user?.id).single();
+    // Busca o ID da empresa através da tabela de membros
+    const { data } = await supabase.from('business_members').select('business_id').eq('user_id', user?.id).maybeSingle();
     return data?.business_id;
   }
 
   const { data: profileData } = useQuery({
     queryKey: ['settings-branding', user?.id],
     queryFn: async () => {
-      const { data } = await supabase
+      // CORREÇÃO CRÍTICA: Busca por 'owner_id' e não 'user_id'
+      const { data, error } = await supabase
         .from('businesses')
         .select('*')
         .eq('owner_id', user?.id)
         .maybeSingle();
-        
-      if (!data) {
-         const { data: old } = await supabase.from('business_profiles').select('*').eq('user_id', user?.id).maybeSingle();
-         return old;
-      }
+      
+      if (error) console.error("Erro ao buscar perfil:", error);
       return data;
     },
     enabled: !!user?.id
@@ -84,7 +83,7 @@ export default function AvailabilitySettings() {
   useEffect(() => {
     if (profileData) {
       setBranding({
-        business_name: profileData.name || profileData.business_name || '',
+        business_name: profileData.name || '',
         slug: profileData.slug || '',
         banner_url: profileData.banner_url || ''
       });
@@ -104,19 +103,25 @@ export default function AvailabilitySettings() {
   // --- MUTAÇÕES ---
   const saveBrandingMutation = useMutation({
     mutationFn: async () => {
-      await supabase.from('businesses').update({
+      // CORREÇÃO: Atualiza usando 'owner_id' na tabela 'businesses'
+      // Removemos a chamada duplicada e incorreta que usava 'user_id'
+      const { error } = await supabase.from('businesses').update({
         name: branding.business_name,
         slug: branding.slug.toLowerCase(),
+        banner_url: branding.banner_url
       }).eq('owner_id', user?.id);
 
-      await supabase.from('business_profiles').update({
-        business_name: branding.business_name,
-        slug: branding.slug.toLowerCase(),
-        banner_url: branding.banner_url
-      }).eq('user_id', user?.id);
+      if (error) throw error;
     },
-    onSuccess: () => toast.success(t('toasts.profile_updated')),
-    onError: () => toast.error(t('toasts.profile_error'))
+    onSuccess: () => {
+      toast.success(t('toasts.profile_updated'));
+      queryClient.invalidateQueries({ queryKey: ['settings-branding'] });
+      queryClient.invalidateQueries({ queryKey: ['my-business-info'] }); // Atualiza o header também
+    },
+    onError: (err) => {
+      console.error(err);
+      toast.error(t('toasts.profile_error'));
+    }
   });
 
   const saveScheduleMutation = useMutation({

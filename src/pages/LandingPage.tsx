@@ -251,7 +251,7 @@ export default function LandingPage() {
                   alt="Painel Cleverya" 
                   className="w-full h-auto object-cover opacity-90 hover:opacity-100 transition-opacity"
                   onError={(e) => {
-                    e.currentTarget.src = "https://bxglxltapbagjmmkagfm.supabase.co/storage/v1/object/public/public-assets/dashboard-print.png";
+                    e.currentTarget.src = "https://bxglxltapbagjmmkagfm.supabase.co/storage/v1/object/public/public-assets/dashboard-print.jpg";
                   }}
                 />
              </div>
@@ -393,7 +393,7 @@ export default function LandingPage() {
                     alt="Controle Financeiro Cleverya" 
                     className="w-full h-auto rounded-xl shadow-inner"
                     onError={(e) => {
-                      e.currentTarget.src = "https://bxglxltapbagjmmkagfm.supabase.co/storage/v1/object/public/public-assets/finance-card.png";
+                      e.currentTarget.src = "https://bxglxltapbagjmmkagfm.supabase.co/storage/v1/object/public/public-assets/finance-card.jpg";
                     }}
                   />
                </div>
@@ -479,7 +479,8 @@ export default function LandingPage() {
               </div>
               <p className="text-sm text-gray-400 mb-6 font-medium">{t('landing.plans.pro.desc')}</p>
 
-              <Link to="/signup">
+              {/* ATUALIZADO: LINK DO PLANO PRO COM PARÂMETROS */}
+              <Link to="/signup?plan=pro&cycle=monthly">
                 <button className="w-full mt-auto py-3 rounded-xl bg-primary text-slate-950 font-bold hover:bg-primary/90 transition-all shadow-lg">
                   {t('landing.plans.pro.cta')}
                 </button>
@@ -495,7 +496,8 @@ export default function LandingPage() {
               </div>
               <p className="text-sm text-gray-400 mb-6 font-medium">{t('landing.plans.business.desc')}</p>
               
-              <Link to="/signup">
+              {/* ATUALIZADO: LINK DO PLANO BUSINESS COM PARÂMETROS */}
+              <Link to="/signup?plan=business&cycle=monthly">
                 <button className="w-full mt-auto py-3 rounded-xl border border-white/20 text-white font-bold hover:bg-white/5 transition-all">
                   {t('landing.plans.business.cta')}
                 </button>
@@ -508,7 +510,8 @@ export default function LandingPage() {
             <h4 className="text-center font-bold text-white mb-6">{t('landing.plans.compare.title')}</h4>
             <div className="grid grid-cols-3 gap-4 text-sm">
               <div className="col-span-1 text-gray-400 font-medium flex items-center">{t('landing.plans.compare.feature')}</div>
-              <div className="col-span-1 text-center font-bold text-primary">Cleverya (Todos)</div>
+              {/* ATUALIZADO: TRADUÇÃO DE (TODOS) */}
+              <div className="col-span-1 text-center font-bold text-primary">Cleverya ({t('landing.plans.compare.all')})</div>
               <div className="col-span-1 text-center text-gray-500">{t('landing.plans.compare.others')}</div>
 
               <div className="col-span-3 h-px bg-white/5 my-1" />
@@ -565,16 +568,20 @@ export default function LandingPage() {
           </div>
 
           <div className="flex gap-6">
-            <a href="#" className="text-gray-500 hover:text-white transition-colors text-sm">
-              {t('landing.footer.terms')}
-            </a>
-            <a href="#" className="text-gray-500 hover:text-white transition-colors text-sm">
-              {t('landing.footer.privacy')}
-            </a>
-            <a href="#" className="text-gray-500 hover:text-white transition-colors text-sm">
-              {t('landing.footer.instagram')}
-            </a>
-          </div>
+  {/* Link para Termos */}
+  <Link to="/terms" className="text-gray-500 hover:text-white transition-colors text-sm">
+    {t('landing.footer.terms')}
+  </Link>
+  
+  {/* Link para Privacidade */}
+  <Link to="/privacy" className="text-gray-500 hover:text-white transition-colors text-sm">
+    {t('landing.footer.privacy')}
+  </Link>
+  
+  <a href="#" className="text-gray-500 hover:text-white transition-colors text-sm">
+    {t('landing.footer.instagram')}
+  </a>
+</div>
         </div>
       </footer>
     </div>

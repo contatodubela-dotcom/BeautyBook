@@ -1,4 +1,5 @@
 // supabase/functions/send-reminders/index.ts
+// deno-lint-ignore-file no-import-prefix no-explicit-any ban-ts-comment
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
 
 const corsHeaders = {
@@ -21,6 +22,7 @@ Deno.serve(async (req: Request) => {
       Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? ''
     )
 
+
     const now = new Date()
     const tomorrowStart = new Date(now)
     tomorrowStart.setDate(tomorrowStart.getDate() + 1)
@@ -33,8 +35,7 @@ Deno.serve(async (req: Request) => {
       .from('appointments')
       .select(`
         *,
-        profiles:user_id (username, phone),
-        services:service_id (name)
+      services:service_id (name)
       `)
       .gte('start_time', tomorrowStart.toISOString())
       .lt('start_time', tomorrowEnd.toISOString())

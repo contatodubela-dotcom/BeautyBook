@@ -6,8 +6,14 @@ const resources = {
   pt: {
     translation: {
       common: {
+        confirm: "Confirmar",
+        complete: "Realizar",
+        undo: "Desfazer",
+        restore: "Restaurar",
+        print: "Imprimir",
         loading: "Carregando...",
         back_home: "Voltar para Home",
+        back: "Voltar", // Adicionado
         app_name: "Cleverya",
         save: "Salvar",
         cancel: "Cancelar",
@@ -28,6 +34,8 @@ const resources = {
         sales: "vendas",
         image_url_help: "Cole o link de uma imagem (Ex: Imgur).",
         copy_all: "Copiar para todos",
+        help: "Ver Tutorial", // Novo
+
         weekdays: {
           0: "Domingo",
           1: "Segunda-feira",
@@ -36,9 +44,28 @@ const resources = {
           4: "Quinta-feira",
           5: "Sexta-feira",
           6: "Sábado"
-        }
+        },
+      tutorial: {
+        welcome_title: "Bem-vindo ao Cleverya!",
+        welcome_subtitle: "Siga esta sequência exata para sua agenda funcionar:",
+        step1_title: "1. Cadastre seus Serviços",
+        step1_desc: "Vá na aba 'Serviços' e crie o que você oferece (ex: Corte, Consulta).",
+        step2_title: "2. Cadastre a Equipe",
+        step2_desc: "Em 'Equipe', cadastre o profissional que vai atender (você). Sem isso a agenda não abre.",
+        step3_title: "3. Ajustes Finais",
+        step3_desc: "Em 'Ajustes', defina o Horário, Nome do local e Foto. Clique em Salvar.",
+        step4_title: "4. Divulgue seu Link",
+        step4_desc: "Pronto! Copie o link no topo da tela e envie para seus clientes.",
+        auto_save: "Siga a ordem para evitar erros de agendamento.",
+        btn_start: "Entendi, vamos lá!"
       },
-      
+      },
+      status: {
+        pending: "Pendente",
+        confirmed: "Confirmado",
+        completed: "Realizado",
+        cancelled: "Cancelado"
+      },
       toasts: {
         success_general: "Salvo com sucesso!",
         error_general: "Ocorreu um erro.",
@@ -64,32 +91,54 @@ const resources = {
         whatsapp_confirm: "Deseja enviar a confirmação para {{name}} no WhatsApp?",
         confirm_cancel_app: "Tem certeza que deseja cancelar?",
         confirm_delete_service: "Excluir este serviço?",
-        link_copied: "Link copiado!"
+        link_copied: "Link copiado!",
+        completed: "Serviço realizado! Valor computado.",
+        undo: "Status revertido para pendente.",
+        restore: "Agendamento restaurado.",
+        opening_portal: "Abrindo portal...",
+        error_portal: "Erro ao abrir portal.",
+        subscription_active_q: "Você tem uma assinatura ativa?"
       },
+      // --- NOVAS SEÇÕES ---
+      legal: {
+        terms_title: "Termos de Uso",
+        privacy_title: "Política de Privacidade",
+        last_updated: "Última atualização",
+        contact_title: "Contato",
+        support_email: "E-mail de Suporte",
+        legal_email: "E-mail Jurídico"
+      },
+      not_found: {
+        title: "404",
+        subtitle: "Página não encontrada",
+        desc: "Ops! O link que você tentou acessar não existe ou foi removido. Verifique se o endereço está correto.",
+        btn_home: "Voltar para o Início"
+      },
+      // --------------------
       booking: {
-  default_business_name: "Agendamento Online",
-  limit_title: "Agendamentos Pausados",
-  limit_desc: "Este estabelecimento atingiu o limite mensal. Entre em contato diretamente.",
-  premium_exp: "Experiência Premium",
-  step_service: "Selecione um serviço",
-  step_date: "Data & Hora",
-  step_identification: "Identificação",
-  step_confirmation: "Confirmação",
-  btn_continue: "Continuar",
-  btn_confirm: "Confirmar",
-  confirming: "Confirmando...",
-  btn_new: "Novo Agendamento",
-  success_title: "Agendado!",
-  success_msg: "Tudo certo, {{name}}! Seu agendamento para {{service}} está confirmado.",
-  welcome_back: "Olá, {{name}}!",
-  blocked_error: "Você não pode agendar neste local.",
-  error_fetch_slots: "Erro ao buscar horários",
-  error_verify: "Erro ao verificar telefone",
-  no_slots: "Sem horários",
-  label_your_name: "Seu Nome",
-  label_email_optional: "Email (Opcional)",
-  category_general: "Geral"
-},
+        default_business_name: "Agendamento Online",
+        limit_title: "Agendamentos Pausados",
+        limit_desc: "Este estabelecimento atingiu o limite mensal. Entre em contato diretamente.",
+        premium_exp: "Experiência Premium",
+        step_service: "Selecione um serviço",
+        step_date: "Data & Hora",
+        step_identification: "Identificação",
+        step_confirmation: "Confirmação",
+        btn_continue: "Continuar",
+        btn_confirm: "Confirmar",
+        confirming: "Confirmando...",
+        btn_new: "Novo Agendamento",
+        success_title: "Agendado!",
+        success_msg: "Tudo certo, {{name}}! Seu agendamento para {{service}} está confirmado.",
+        welcome_back: "Olá, {{name}}!",
+        blocked_error: "Você não pode agendar neste local.",
+        error_fetch_slots: "Erro ao buscar horários",
+        error_verify: "Erro ao verificar telefone",
+        no_slots: "Sem horários",
+        label_your_name: "Seu Nome",
+        label_email_optional: "Email (Opcional)",
+        category_general: "Geral"
+      },
       auth: {
         login_title: "Acesse sua conta",
         login_subtitle: "Gerencie seu negócio de qualquer lugar.",
@@ -98,23 +147,23 @@ const resources = {
         label_business: "Nome do Negócio",
         label_email: "E-mail",
         label_password: "Senha",
-        forgot_password: "Esqueceu a senha?", // NOVO
+        forgot_password: "Esqueceu a senha?",
         placeholder_business: "Ex: Consultório Silva",
-        placeholder_email: "seu@email.com", // NOVO
-        placeholder_password: "Mínimo 6 caracteres", // NOVO (usado no placeholder)
+        placeholder_email: "seu@email.com",
+        placeholder_password: "Mínimo 6 caracteres",
         btn_login: "Entrar",
         btn_signup: "Criar Conta",
         btn_loading: "Processando...",
         link_have_account: "Já tem uma conta? Entrar",
         link_no_account: "Não tem uma conta? Cadastre-se",
-        no_account_question: "Não tem uma conta?", // NOVO (separado para layout)
-        signup_link_text: "Cadastre-se", // NOVO
+        no_account_question: "Não tem uma conta?",
+        signup_link_text: "Cadastre-se",
         error_generic: "Ocorreu um erro. Tente novamente.",
-        error_login_generic: "Erro ao entrar. Verifique suas credenciais.", // NOVO
-        error_login_invalid: "E-mail ou senha incorretos.", // NOVO
-        error_login_unconfirmed: "E-mail não confirmado.", // NOVO
-        validation_email: "E-mail inválido", // NOVO (Zod)
-        validation_password_min: "A senha deve ter no mínimo 6 caracteres", // NOVO (Zod)
+        error_login_generic: "Erro ao entrar. Verifique suas credenciais.",
+        error_login_invalid: "E-mail ou senha incorretos.",
+        error_login_unconfirmed: "E-mail não confirmado.",
+        validation_email: "E-mail inválido",
+        validation_password_min: "A senha deve ter no mínimo 6 caracteres",
         signup_success_title: "Verifique seu Email",
         signup_success_msg: "Enviamos um link de confirmação para",
         btn_back_login: "Voltar para Login"
@@ -122,13 +171,25 @@ const resources = {
       dashboard: {
         link_btn: "Link de Agendamento",
         link_copied: "Link copiado!",
+        manage_subscription: "Gerenciar Assinatura", // Adicionado
+        subscription_short: "Assinatura", // Adicionado
         banner: {
           description: "Desbloqueie relatórios avançados, múltiplos profissionais e lembretes automáticos.",
           cta: "Ver Planos",
           upgrade_pro_title: "Seja Cleverya Pro",
           upgrade_biz_title: "Migre para o Business",
           upgrade_pro_desc: "Desbloqueie agendamentos ilimitados e remova a marca Cleverya.",
-          upgrade_biz_desc: "Gerencie múltiplos profissionais, locais e tenha relatórios avançados."
+          upgrade_biz_desc: "Gerencie múltiplos profissionais, locais e tenha relatórios avançados.",
+          title: "Agenda",
+          today: "Hoje",
+          week: "Semana",
+          summary: "Resumo",
+          total: "Total",
+          pending: "Pendentes",
+          confirmed: "Confirmados",
+          completed: "Realizados",
+          no_appointments: "Nenhum agendamento neste período.",
+          refresh: "Atualizar"
         },
         tabs: {
           overview: "Visão Geral",
@@ -168,6 +229,7 @@ const resources = {
           total: "Total",
           confirmed: "Confirmados",
           pending: "Pendentes",
+          completed: "Realizados",
           refresh: "Atualizar",
           no_appointments: "Nenhum agendamento encontrado neste período."
         },
@@ -213,6 +275,7 @@ const resources = {
           current_month: "Mês atual",
           last_month: "Mês passado",
           last_3_months: "Últimos 3 meses",
+          custom: "Personalizado",
           real_data: "Dados reais",
           ticket_avg: "Ticket Médio",
           top_services: "Top Serviços",
@@ -270,6 +333,7 @@ const resources = {
           compare: {
             title: "Comparativo Rápido",
             feature: "Recurso",
+            all: "Todos",
             others: "Outros Apps",
             charged_separately: "Cobrado à parte"
           }
@@ -357,6 +421,7 @@ const resources = {
       common: {
         loading: "Loading...",
         back_home: "Back to Home",
+        back: "Back", // Adicionado
         app_name: "Cleverya",
         save: "Save",
         cancel: "Cancel",
@@ -377,6 +442,12 @@ const resources = {
         sales: "sales",
         image_url_help: "Paste an image link (e.g., Imgur).",
         copy_all: "Copy to all",
+        confirm: "Confirm",
+        complete: "Complete",
+        undo: "Undo",
+        restore: "Restore",
+        print: "Print",
+        help: "View Tutorial", // Novo
         weekdays: {
           0: "Sunday",
           1: "Monday",
@@ -387,30 +458,26 @@ const resources = {
           6: "Saturday"
         }
       },
-      booking: {
-  default_business_name: "Online Booking",
-  limit_title: "Booking Paused",
-  limit_desc: "This business has reached its monthly limit. Please contact them directly.",
-  premium_exp: "Premium Experience",
-  step_service: "Select a service",
-  step_date: "Date & Time",
-  step_identification: "Identification",
-  step_confirmation: "Confirmation",
-  btn_continue: "Continue",
-  btn_confirm: "Confirm",
-  confirming: "Confirming...",
-  btn_new: "New Booking",
-  success_title: "Confirmed!",
-  success_msg: "All set, {{name}}! Your booking for {{service}} is confirmed.",
-  welcome_back: "Welcome back, {{name}}!",
-  blocked_error: "You cannot book at this location.",
-  error_fetch_slots: "Error fetching slots",
-  error_verify: "Error verifying phone",
-  no_slots: "No slots available",
-  label_your_name: "Your Name",
-  label_email_optional: "Email (Optional)",
-  category_general: "General"
-},
+      tutorial: {
+        welcome_title: "Welcome to Cleverya!",
+        welcome_subtitle: "Follow this exact sequence for your calendar to work:",
+        step1_title: "1. Register Services",
+        step1_desc: "Go to 'Services' tab and create what you offer.",
+        step2_title: "2. Register Team",
+        step2_desc: "In 'Team', register the professional (you). Without this, booking won't work.",
+        step3_title: "3. Final Settings",
+        step3_desc: "In 'Settings', set Hours, Business Name, and Photo. Click Save.",
+        step4_title: "4. Share Link",
+        step4_desc: "Ready! Copy the link at the top and send it to clients.",
+        auto_save: "Follow the order to avoid errors.",
+        btn_start: "Got it, let's go!"
+      },
+      status: {
+        pending: "Pending",
+        confirmed: "Confirmed",
+        completed: "Completed",
+        cancelled: "Cancelled"
+      },
       toasts: {
         success_general: "Saved successfully!",
         error_general: "An error occurred.",
@@ -436,7 +503,53 @@ const resources = {
         whatsapp_confirm: "Send confirmation to {{name}} on WhatsApp?",
         confirm_cancel_app: "Are you sure you want to cancel?",
         confirm_delete_service: "Delete this service?",
-        link_copied: "Link copied!"
+        link_copied: "Link copied!",
+        completed: "Service completed! Value added to revenue.",
+        undo: "Status reverted to pending.",
+        restore: "Appointment restored.",
+        opening_portal: "Opening portal...",
+        error_portal: "Error opening portal.",
+        subscription_active_q: "Do you have an active subscription?"
+      },
+      // --- NOVAS SEÇÕES EN ---
+      legal: {
+        terms_title: "Terms of Use",
+        privacy_title: "Privacy Policy",
+        last_updated: "Last updated",
+        contact_title: "Contact",
+        support_email: "Support Email",
+        legal_email: "Legal Email"
+      },
+      not_found: {
+        title: "404",
+        subtitle: "Page not found",
+        desc: "Oops! The link you tried to access does not exist or has been removed. Please check the address.",
+        btn_home: "Back to Home"
+      },
+      // -----------------------
+      booking: {
+        default_business_name: "Online Booking",
+        limit_title: "Booking Paused",
+        limit_desc: "This business has reached its monthly limit. Please contact them directly.",
+        premium_exp: "Premium Experience",
+        step_service: "Select a service",
+        step_date: "Date & Time",
+        step_identification: "Identification",
+        step_confirmation: "Confirmation",
+        btn_continue: "Continue",
+        btn_confirm: "Confirm",
+        confirming: "Confirming...",
+        btn_new: "New Booking",
+        success_title: "Confirmed!",
+        success_msg: "All set, {{name}}! Your booking for {{service}} is confirmed.",
+        welcome_back: "Welcome back, {{name}}!",
+        blocked_error: "You cannot book at this location.",
+        error_fetch_slots: "Error fetching slots",
+        error_verify: "Error verifying phone",
+        no_slots: "No slots available",
+        label_your_name: "Your Name",
+        label_email_optional: "Email (Optional)",
+        category_general: "General"
       },
       auth: {
         login_title: "Welcome back",
@@ -446,23 +559,23 @@ const resources = {
         label_business: "Business Name",
         label_email: "Email",
         label_password: "Password",
-        forgot_password: "Forgot password?", // NOVO
+        forgot_password: "Forgot password?", 
         placeholder_business: "Ex: Smith Consulting",
-        placeholder_email: "you@email.com", // NOVO
-        placeholder_password: "Minimum 6 characters", // NOVO
+        placeholder_email: "you@email.com", 
+        placeholder_password: "Minimum 6 characters", 
         btn_login: "Sign In",
         btn_signup: "Create Account",
         btn_loading: "Processing...",
         link_have_account: "Already have an account? Sign In",
         link_no_account: "Don't have an account? Sign Up",
-        no_account_question: "Don't have an account?", // NOVO
-        signup_link_text: "Sign Up", // NOVO
+        no_account_question: "Don't have an account?", 
+        signup_link_text: "Sign Up", 
         error_generic: "An error occurred. Please try again.",
-        error_login_generic: "Login failed. Check your credentials.", // NOVO
-        error_login_invalid: "Invalid email or password.", // NOVO
-        error_login_unconfirmed: "Email not confirmed.", // NOVO
-        validation_email: "Invalid email", // NOVO (Zod)
-        validation_password_min: "Password must be at least 6 characters", // NOVO (Zod)
+        error_login_generic: "Login failed. Check your credentials.", 
+        error_login_invalid: "Invalid email or password.", 
+        error_login_unconfirmed: "Email not confirmed.", 
+        validation_email: "Invalid email", 
+        validation_password_min: "Password must be at least 6 characters", 
         signup_success_title: "Check your Email",
         signup_success_msg: "We sent a confirmation link to",
         btn_back_login: "Back to Login"
@@ -470,6 +583,8 @@ const resources = {
       dashboard: {
         link_btn: "Booking Link",
         link_copied: "Link copied!",
+        manage_subscription: "Manage Subscription", // Adicionado
+        subscription_short: "Subscription", // Adicionado
         banner: {
           description: "Unlock advanced reports, multiple professionals, and automatic reminders.",
           cta: "View Plans",
@@ -516,6 +631,7 @@ const resources = {
           total: "Total",
           confirmed: "Confirmed",
           pending: "Pending",
+          completed: "Completed",
           refresh: "Refresh",
           no_appointments: "No appointments found."
         },
@@ -561,6 +677,7 @@ const resources = {
           current_month: "Current Month",
           last_month: "Last Month",
           last_3_months: "Last 3 Months",
+          custom: "Custom",
           real_data: "Real Data",
           ticket_avg: "Avg Ticket",
           top_services: "Top Services",
@@ -618,6 +735,7 @@ const resources = {
           compare: {
             title: "Comparison",
             feature: "Feature",
+            all: "All",
             others: "Others",
             charged_separately: "Charged separately"
           }
