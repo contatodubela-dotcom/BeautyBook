@@ -194,15 +194,20 @@ export default function DashboardPage() {
                 {i18n.language === 'pt' ? '🇺🇸 EN' : '🇧🇷 PT'}
               </Button>
 
-              {/* BOTÃO LINK DE AGENDAMENTO */}
+              {/* BOTÃO LINK DE AGENDAMENTO (CORRIGIDO PARA MOBILE) */}
               <Button 
                 onClick={handleShareUrl} 
                 variant="ghost" 
                 size="sm" 
-                className="hidden md:flex items-center gap-2 text-primary hover:text-white hover:bg-white/10"
+                // MUDANÇA AQUI: Trocamos 'hidden md:flex' por 'flex' para aparecer sempre
+                className="flex items-center gap-2 text-primary hover:text-white hover:bg-white/10"
+                title={t('dashboard.link_btn', { defaultValue: 'Link de Agendamento' })}
               >
-                <Share2 className="w-4 h-4" />
-                <span className="hidden lg:inline">{t('dashboard.link_btn', { defaultValue: 'Link de Agendamento' })}</span>
+                <Share2 className="w-5 h-5" />
+                {/* O texto continua escondido no celular para não quebrar o layout, mas o ícone aparece */}
+                <span className="hidden lg:inline">
+                  {t('dashboard.link_btn', { defaultValue: 'Link de Agendamento' })}
+                </span>
               </Button>
 
               {/* BOTÃO ASSINATURA */}
