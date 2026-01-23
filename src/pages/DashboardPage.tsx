@@ -154,20 +154,22 @@ export default function DashboardPage() {
       : 'bg-slate-700 text-slate-400 border-slate-600';
 
   return (
-    <div className="min-h-screen bg-[#0f172a] pb-24 md:pb-6 print:bg-white print:pb-0 text-slate-100">
+    <div className="min-h-screen bg-[#0f172a] pb-24 md:pb-6 print:bg-white print:pb-0 text-slate-100 overflow-x-hidden">
       
       <header className="bg-[#1e293b]/90 border-b border-white/10 sticky top-0 z-50 print:hidden backdrop-blur-md">
         <div className="container max-w-6xl mx-auto px-4 py-4">
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-4">
-              <div className="w-10 h-10 rounded-xl bg-primary flex items-center justify-center shadow-[0_0_15px_rgba(246,173,85,0.2)]">
+          <div className="flex items-center justify-between gap-2"> {/* Gap-2 garante separação mínima */}
+            
+            {/* LADO ESQUERDO: LOGO E NOME (Flexível para encolher se necessário) */}
+            <div className="flex items-center gap-3 md:gap-4 min-w-0 flex-1"> 
+              <div className="w-10 h-10 rounded-xl bg-primary flex items-center justify-center shadow-[0_0_15px_rgba(246,173,85,0.2)] shrink-0">
                 <Sparkles className="w-5 h-5 text-gray-900" />
               </div>
-              <div className="flex flex-col justify-center">
-                <h1 className="font-bold text-lg leading-tight text-white">Cleverya</h1>
+              <div className="flex flex-col justify-center min-w-0">
+                <h1 className="font-bold text-lg leading-tight text-white truncate">Cleverya</h1>
                 
                 <div className="flex items-center gap-2">
-                  <p className="text-[11px] text-gray-400 uppercase tracking-widest font-medium truncate max-w-[120px] md:max-w-none">
+                  <p className="text-[11px] text-gray-400 uppercase tracking-widest font-medium truncate">
                     {businessData?.name || user?.email || 'Profissional'}
                   </p>
                   <span className={`text-[9px] font-bold px-1.5 py-0.5 rounded border ${planColor} flex items-center gap-1 shrink-0`}>
@@ -178,8 +180,10 @@ export default function DashboardPage() {
               </div>
             </div>
 
-            <div className="flex items-center gap-3">
-              {/* BOTÃO DE AJUDA / TUTORIAL */}
+            {/* LADO DIREITO: AÇÕES (Não encolhe) */}
+            <div className="flex items-center gap-1 md:gap-3 shrink-0">
+              
+              {/* BOTÃO DE AJUDA (Apenas Desktop) */}
               <Button 
                 onClick={handleOpenTutorial}
                 variant="ghost" 
@@ -190,38 +194,39 @@ export default function DashboardPage() {
                 <HelpCircle className="w-5 h-5" />
               </Button>
 
-              <Button onClick={toggleLanguage} variant="ghost" size="sm" className="text-xs font-bold text-gray-400 hover:text-white">
+              {/* BOTÃO IDIOMA: Visível SEMPRE (Ajustado padding para mobile) */}
+              <Button onClick={toggleLanguage} variant="ghost" size="sm" className="px-2 text-xs font-bold text-gray-400 hover:text-white">
                 {i18n.language === 'pt' ? '🇺🇸 EN' : '🇧🇷 PT'}
               </Button>
 
-              {/* BOTÃO LINK DE AGENDAMENTO (CORRIGIDO PARA MOBILE) */}
+              {/* BOTÃO LINK DE AGENDAMENTO: Ícone sempre, texto apenas Desktop */}
               <Button 
                 onClick={handleShareUrl} 
                 variant="ghost" 
                 size="sm" 
-                // MUDANÇA AQUI: Trocamos 'hidden md:flex' por 'flex' para aparecer sempre
-                className="flex items-center gap-2 text-primary hover:text-white hover:bg-white/10"
+                className="flex items-center gap-2 text-primary hover:text-white hover:bg-white/10 px-2 md:px-3"
                 title={t('dashboard.link_btn', { defaultValue: 'Link de Agendamento' })}
               >
                 <Share2 className="w-5 h-5" />
-                {/* O texto continua escondido no celular para não quebrar o layout, mas o ícone aparece */}
-                <span className="hidden lg:inline">
+                <span className="hidden md:inline">
                   {t('dashboard.link_btn', { defaultValue: 'Link de Agendamento' })}
                 </span>
               </Button>
 
-              {/* BOTÃO ASSINATURA */}
-              <Button onClick={handleManageSubscription} variant="outline" size="sm" className="gap-2 border-primary/30 hover:bg-primary hover:text-gray-900 text-primary h-9 transition-all bg-transparent">
+              {/* BOTÃO ASSINATURA: Ícone sempre, texto apenas Desktop */}
+              <Button 
+                onClick={handleManageSubscription} 
+                variant="outline" 
+                size="sm" 
+                className="gap-2 border-primary/30 hover:bg-primary hover:text-gray-900 text-primary h-9 transition-all bg-transparent px-2 md:px-3"
+              >
                 <Crown className="w-4 h-4 text-yellow-500" />
-                <span className="hidden sm:inline">
+                <span className="hidden md:inline">
                     {t('dashboard.manage_subscription')}
-                </span>
-                <span className="sm:hidden">
-                    {t('dashboard.subscription_short')}
                 </span>
               </Button>
 
-              <Button variant="ghost" onClick={logout} size="icon" className="h-9 w-9 text-gray-400 hover:text-red-400 hover:bg-red-500/10">
+              <Button variant="ghost" onClick={logout} size="icon" className="h-9 w-9 text-gray-400 hover:text-red-400 hover:bg-red-500/10 shrink-0">
                 <LogOut className="w-4 h-4" />
               </Button>
             </div>
@@ -229,7 +234,7 @@ export default function DashboardPage() {
         </div>
       </header>
 
-      {/* ABAS */}
+      {/* ABAS (Desktop) */}
       <div className="hidden md:block border-b border-white/10 bg-[#0f172a] sticky top-[73px] z-40 print:hidden">
         <div className="container max-w-6xl mx-auto px-4">
           <div className="flex gap-8 overflow-x-auto scrollbar-hide">
@@ -251,7 +256,7 @@ export default function DashboardPage() {
         </div>
       </div>
 
-      <main className="container max-w-6xl mx-auto px-4 py-8 animate-fade-in print:p-0 print:max-w-none">
+      <main className="container max-w-6xl mx-auto px-4 py-8 animate-fade-in print:p-0 print:max-w-none overflow-x-hidden">
         
         {activeTab === 'overview' && shouldShowPricing && (
            <div id="pricing-section" className="mb-12 animate-in slide-in-from-top-10">
@@ -265,7 +270,10 @@ export default function DashboardPage() {
                  </p>
                )}
              </div>
-             <PricingTable />
+             {/* Wrapper para evitar quebra em tabelas largas */}
+             <div className="w-full overflow-x-auto">
+                <PricingTable />
+             </div>
            </div>
         )}
 
@@ -299,7 +307,6 @@ export default function DashboardPage() {
         </div>
       </div>
 
-      {/* COMPONENTE DO TUTORIAL - INVISÍVEL ATÉ ATIVAR (OU 1º ACESSO) */}
       <OnboardingModal />
 
     </div>

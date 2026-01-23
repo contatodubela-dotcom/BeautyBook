@@ -10,24 +10,34 @@ import { Trash2, User, Plus, Crown, Loader2, Users, Pencil, X } from 'lucide-rea
 import { toast } from 'sonner';
 import { useTranslation } from 'react-i18next';
 
+// Interface para tipagem
+interface Professional {
+  id: string;
+  name: string;
+  capacity: number;
+  is_active: boolean;
+}
+
 export default function ProfessionalsManager() {
   const { t } = useTranslation();
   const { user } = useAuth();
   const { plan, loading: loadingPlan } = usePlan();
   const queryClient = useQueryClient();
   
-  // ESTADOS (Adicionei capacity e editingId)
+  // Estados para Formulário e Edição
   const [formData, setFormData] = useState({ name: '', capacity: 1 });
   const [editingId, setEditingId] = useState<string | null>(null);
   const [isCreating, setIsCreating] = useState(false);
 
+  // Busca Profissionais
   const { data: professionals, isLoading } = useQuery({
     queryKey: ['professionals-list', user?.id],
     queryFn: async () => {
-      const { data: member } = await supabase.from('business_members').select('business_id').eq('user_id', user?.id).single();
+      // Tenta buscar ID via business_members
+      const { data: member } = await supabase.from('business_members').select('business_id').eq('user_id', user?.id).maybeSingle();
       let businessId = member?.business_id;
       
-      // Fallback para Owner se não achar Member
+      // Se não achar, tenta buscar como dono (Fallback)
       if (!businessId) {
          const { data: owner } = await supabase.from('businesses').select('id').eq('owner_id', user?.id).maybeSingle();
          businessId = owner?.id;
@@ -43,15 +53,16 @@ export default function ProfessionalsManager() {
         .order('created_at');
 
       if (error) throw error;
-      return data;
+      return data as Professional[];
     },
     enabled: !!user?.id,
   });
 
+  // Mutação (Criar ou Editar)
   const upsertMutation = useMutation({
     mutationFn: async () => {
       let businessId = null;
-      const { data: member } = await supabase.from('business_members').select('business_id').eq('user_id', user?.id).single();
+      const { data: member } = await supabase.from('business_members').select('business_id').eq('user_id', user?.id).maybeSingle();
       if (member) businessId = member.business_id;
       else {
          const { data: owner } = await supabase.from('businesses').select('id').eq('owner_id', user?.id).maybeSingle();
@@ -60,7 +71,7 @@ export default function ProfessionalsManager() {
 
       if (!businessId) throw new Error("Empresa não encontrada");
 
-      // Se for CRIAÇÃO, checa limite
+      // Checa limite apenas se for criação nova
       if (!editingId) {
           const currentCount = professionals?.length || 0;
           if (plan === 'free' && currentCount >= 1) {
@@ -69,14 +80,14 @@ export default function ProfessionalsManager() {
       }
 
       if (editingId) {
-        // UPDATE
+        // ATUALIZAR
         const { error } = await supabase
           .from('professionals')
           .update({ name: formData.name, capacity: formData.capacity })
           .eq('id', editingId);
         if (error) throw error;
       } else {
-        // INSERT
+        // CRIAR
         const { error } = await supabase.from('professionals').insert({
           name: formData.name,
           capacity: formData.capacity,
@@ -89,7 +100,7 @@ export default function ProfessionalsManager() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['professionals-list'] });
       resetForm();
-      toast.success(editingId ? 'Atualizado!' : t('toasts.pro_created', {defaultValue: 'Profissional adicionado!'}));
+      toast.success(editingId ? 'Atualizado com sucesso!' : t('toasts.pro_created', {defaultValue: 'Profissional adicionado!'}));
     },
     onError: (err: any) => {
       toast.error(err.message === "Limite do plano atingido" ? t('toasts.plan_limit', {defaultValue: 'Limite do plano atingido'}) : t('toasts.error_generic', {defaultValue: 'Erro ao processar'}));
@@ -114,10 +125,12 @@ export default function ProfessionalsManager() {
     upsertMutation.mutate();
   };
 
-  const handleEdit = (pro: any) => {
+  const handleEdit = (pro: Professional) => {
     setFormData({ name: pro.name, capacity: pro.capacity || 1 });
     setEditingId(pro.id);
-    setIsCreating(true); // Abre o form
+    setIsCreating(true);
+    // Rola para o topo suavemente para ver o formulário
+    window.scrollTo({ top: 0, behavior: 'smooth' });
   };
 
   const resetForm = () => {
@@ -131,11 +144,14 @@ export default function ProfessionalsManager() {
   if (isLoading || loadingPlan) return <div className="p-8 flex justify-center"><Loader2 className="animate-spin text-white" /></div>;
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-6 pb-20"> {/* pb-20 extra para mobile */}
       <div className="flex justify-between items-center">
         <div>
           <h2 className="text-2xl font-bold text-white">{t('dashboard.team.title', { defaultValue: 'Equipe' })}</h2>
           <p className="text-slate-400">{t('dashboard.team.subtitle', { defaultValue: 'Gerencie quem atende em seu negócio.' })}</p>
+        </div>
+         <div className="bg-slate-800 border border-slate-700 px-3 py-1 rounded-full text-xs font-bold text-slate-300">
+           {professionals?.length || 0} / {plan === 'free' ? '1' : '∞'} Ativos
         </div>
       </div>
 
@@ -146,7 +162,7 @@ export default function ProfessionalsManager() {
              <Card className="p-4 border-primary/50 bg-slate-800/50 flex flex-col justify-center animate-in fade-in zoom-in-95 col-span-1 md:col-span-2 lg:col-span-1">
                <form onSubmit={handleSubmit} className="space-y-3">
                  <div className="flex justify-between items-center">
-                    <span className="text-xs font-bold text-primary uppercase">{editingId ? 'Editando' : 'Novo'}</span>
+                    <span className="text-xs font-bold text-primary uppercase">{editingId ? 'Editando' : 'Novo Profissional'}</span>
                     {editingId && <button type="button" onClick={resetForm}><X className="w-4 h-4 text-slate-400 hover:text-white"/></button>}
                  </div>
                  
@@ -156,7 +172,7 @@ export default function ProfessionalsManager() {
                    value={formData.name}
                    onChange={e => setFormData({...formData, name: e.target.value})}
                    autoFocus
-                   className="bg-slate-900 border-slate-700 text-white placeholder:text-slate-500"
+                   className="bg-slate-900 border-slate-700 text-white placeholder:text-slate-500 focus:border-primary"
                  />
 
                  {/* Capacidade */}
@@ -169,16 +185,16 @@ export default function ProfessionalsManager() {
                             max="50"
                             value={formData.capacity}
                             onChange={e => setFormData({...formData, capacity: parseInt(e.target.value) || 1})}
-                            className="pl-9 bg-slate-900 border-slate-700 text-white placeholder:text-slate-500"
+                            className="pl-9 bg-slate-900 border-slate-700 text-white placeholder:text-slate-500 focus:border-primary"
                         />
                     </div>
-                    <span className="text-xs text-slate-500">pessoas simultâneas</span>
+                    <span className="text-xs text-slate-500 whitespace-nowrap">clientes simultâneos</span>
                  </div>
 
                  <div className="flex gap-2 justify-end pt-2">
-                   <Button type="button" size="sm" variant="ghost" onClick={resetForm} className="text-slate-400 hover:text-white">{t('common.cancel', {defaultValue: 'Cancelar'})}</Button>
+                   <Button type="button" size="sm" variant="ghost" onClick={resetForm} className="text-slate-400 hover:text-white hover:bg-slate-800">{t('common.cancel', {defaultValue: 'Cancelar'})}</Button>
                    <Button type="submit" size="sm" disabled={upsertMutation.isPending} className="bg-primary text-slate-900 font-bold hover:bg-primary/90">
-                     {upsertMutation.isPending ? <Loader2 className="w-4 h-4 animate-spin" /> : (editingId ? 'Atualizar' : t('common.save', {defaultValue: 'Salvar'}))}
+                     {upsertMutation.isPending ? <Loader2 className="w-4 h-4 animate-spin" /> : (editingId ? 'Salvar Alterações' : t('common.save', {defaultValue: 'Salvar'}))}
                    </Button>
                  </div>
                </form>
@@ -186,16 +202,16 @@ export default function ProfessionalsManager() {
            ) : (
              <button 
                 onClick={() => setIsCreating(true)}
-                className="group h-full min-h-[80px] rounded-xl border-2 border-dashed border-slate-700 hover:border-primary hover:bg-slate-800 flex items-center justify-center gap-2 transition-all p-4"
+                className="group h-full min-h-[100px] rounded-xl border-2 border-dashed border-slate-700 hover:border-primary hover:bg-slate-800/50 flex items-center justify-center gap-2 transition-all p-4"
              >
-                <div className="w-8 h-8 rounded-full bg-slate-800 group-hover:bg-primary flex items-center justify-center transition-colors">
-                   <Plus className="w-4 h-4 text-slate-400 group-hover:text-slate-900" />
+                <div className="w-10 h-10 rounded-full bg-slate-800 group-hover:bg-primary flex items-center justify-center transition-colors">
+                   <Plus className="w-5 h-5 text-slate-400 group-hover:text-slate-900" />
                 </div>
                 <span className="text-sm font-medium text-slate-500 group-hover:text-primary">{t('dashboard.team.btn_new', {defaultValue: 'Adicionar Profissional'})}</span>
              </button>
            )
         ) : (
-          <div className="rounded-xl border border-amber-900/50 bg-amber-950/20 p-4 flex flex-col items-center justify-center text-center gap-2">
+          <div className="rounded-xl border border-amber-900/50 bg-amber-950/20 p-4 flex flex-col items-center justify-center text-center gap-2 min-h-[100px]">
             <Crown className="w-6 h-6 text-amber-500" />
             <p className="text-sm font-bold text-amber-500">{t('dashboard.team.limit_free', {defaultValue: 'Limite do plano atingido'})}</p>
             <Button size="sm" className="bg-amber-600 hover:bg-amber-700 text-white w-full border-none" onClick={() => window.location.hash = '#pricing'}>
@@ -205,43 +221,41 @@ export default function ProfessionalsManager() {
         )}
 
         {/* Lista de Profissionais */}
-        {professionals?.map((pro: any) => (
-          <Card key={pro.id} className="p-4 bg-slate-800 border-slate-700 relative group hover:border-slate-500 transition-colors">
-            <div className="flex items-center justify-between mb-2">
-                <div className="flex items-center gap-3">
-                    <div className="w-10 h-10 rounded-full bg-slate-700 flex items-center justify-center">
-                        <User className="w-5 h-5 text-slate-400" />
-                    </div>
-                    <div>
-                        <h3 className="font-bold text-white">{pro.name}</h3>
-                        <div className="flex items-center gap-2 text-xs">
-                             <span className="text-green-400 flex items-center gap-1">
-                                <span className="w-1.5 h-1.5 rounded-full bg-green-400"></span> Ativo
-                             </span>
-                             <span className="text-slate-500 flex items-center gap-1 border-l border-slate-600 pl-2">
-                                <Users className="w-3 h-3" /> Cap: {pro.capacity || 1}
-                             </span>
-                        </div>
+        {professionals?.map((pro) => (
+          <Card key={pro.id} className="p-4 bg-slate-800 border-slate-700 relative group hover:border-slate-500 transition-colors flex flex-col justify-between">
+            <div className="flex items-start gap-3 mb-4">
+                <div className="w-10 h-10 rounded-full bg-slate-700 flex items-center justify-center shrink-0">
+                    <User className="w-5 h-5 text-slate-400" />
+                </div>
+                <div className="overflow-hidden">
+                    <h3 className="font-bold text-white truncate">{pro.name}</h3>
+                    <div className="flex items-center gap-2 text-xs mt-1 flex-wrap">
+                         <span className="text-green-400 flex items-center gap-1 shrink-0">
+                            <span className="w-1.5 h-1.5 rounded-full bg-green-400"></span> Ativo
+                         </span>
+                         <span className="text-slate-500 flex items-center gap-1 border-l border-slate-600 pl-2 shrink-0">
+                            <Users className="w-3 h-3" /> Cap: {pro.capacity || 1}
+                         </span>
                     </div>
                 </div>
             </div>
             
-            <div className="flex justify-end gap-2 mt-2 border-t border-slate-700/50 pt-2">
+            <div className="flex justify-end gap-2 border-t border-slate-700/50 pt-3">
                  <Button 
                     size="sm" variant="ghost" 
                     onClick={() => handleEdit(pro)}
-                    className="h-8 text-xs text-slate-400 hover:text-white hover:bg-slate-700"
+                    className="h-8 flex-1 text-xs text-slate-400 hover:text-white hover:bg-slate-700"
                  >
-                    <Pencil className="w-3 h-3 mr-1" /> Editar
+                    <Pencil className="w-3 h-3 mr-2" /> Editar
                  </Button>
                  <Button 
                     size="sm" variant="ghost" 
                     onClick={() => {
-                        if(confirm(t('toasts.confirm_delete_pro', {defaultValue: 'Remover?'}))) deleteMutation.mutate(pro.id)
+                        if(confirm(t('toasts.confirm_delete_pro', {defaultValue: 'Remover este profissional?'}))) deleteMutation.mutate(pro.id)
                     }}
-                    className="h-8 text-xs text-slate-400 hover:text-red-400 hover:bg-red-900/20"
+                    className="h-8 flex-1 text-xs text-slate-400 hover:text-red-400 hover:bg-red-900/20"
                  >
-                    <Trash2 className="w-3 h-3 mr-1" /> Remover
+                    <Trash2 className="w-3 h-3 mr-2" /> Remover
                  </Button>
             </div>
           </Card>
