@@ -9,6 +9,7 @@ export function SEO() {
   
   const currentLang = lang.startsWith('pt') ? 'pt_BR' : 'en_US';
   const htmlLang = lang.startsWith('pt') ? 'pt-BR' : 'en';
+  const canonicalUrl = window.location.origin + window.location.pathname;
 
   const schemaData = {
     "@context": "https://schema.org",
@@ -27,6 +28,7 @@ export function SEO() {
   return (
     <Helmet>
       <html lang={htmlLang} />
+      <link rel="canonical" href={canonicalUrl} />
       <title>{t('seo.title', { defaultValue: 'Cleverya — Seu tempo, organizado com inteligência' })}</title>
       <meta name="description" content={t('seo.description', { defaultValue: 'Agendamento inteligente e gestão simplificada.' })} />
       <meta name="keywords" content={t('seo.keywords', { defaultValue: 'agendamento online, gestão de tempo, agenda' })} />

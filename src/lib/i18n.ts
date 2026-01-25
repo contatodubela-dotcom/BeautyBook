@@ -825,7 +825,15 @@ i18n
   .use(initReactI18next)
   .init({
     resources,
-    fallbackLng: 'pt',
+    fallbackLng: 'pt', // Se o idioma do usuário for Japonês, cai em Português
+    supportedLngs: ['pt', 'en'], // Lista explícita do que você suporta
+    
+    // Configuração do Detector (Opcional, mas melhora a experiência)
+    detection: {
+      order: ['localStorage', 'navigator'], // 1º Vê se já tem salvo, 2º Vê o navegador
+      caches: ['localStorage'], // Salva a escolha do usuário na memória do navegador
+    },
+
     interpolation: {
       escapeValue: false 
     }

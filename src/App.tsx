@@ -11,6 +11,7 @@ import BookingPage from './pages/BookingPage';
 import LandingPage from './pages/LandingPage';
 import NotFound from './pages/NotFound';
 import { SEO } from './components/SEO';
+import { GoogleAnalyticsTracker } from './components/GoogleAnalyticsTracker'; // <--- IMPORTAR
 
 // Componente de Carregamento Simples
 function LoadingScreen() {
@@ -42,6 +43,7 @@ function App() {
       {/* O Suspense evita que o site trave enquanto troca de idioma */}
       <Suspense fallback={<LoadingScreen />}>
         <SEO /> 
+        <GoogleAnalyticsTracker />
         <Routes>
           <Route path="/" element={<LandingPage />} />
           <Route path="/login" element={<LoginPage />} />
