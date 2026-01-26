@@ -73,7 +73,6 @@ export default function DashboardPage() {
     }
   };
 
-  // Função para abrir o tutorial manualmente (Ajuda)
   const handleOpenTutorial = () => {
     localStorage.removeItem('cleverya_tutorial_seen');
     window.location.reload();
@@ -94,7 +93,6 @@ export default function DashboardPage() {
     queryFn: async () => {
       if (!user?.id) return null;
 
-      // 1. TENTATIVA PRINCIPAL: Buscar direto na tabela businesses (Sou o Dono?)
       const { data: ownerBusiness } = await supabase
         .from('businesses')
         .select('slug, name, plan_type, subscription_status')
@@ -105,7 +103,6 @@ export default function DashboardPage() {
         return ownerBusiness;
       }
 
-      // 2. SEGUNDA TENTATIVA: Buscar na tabela de membros (Sou funcionário?)
       const { data: memberData } = await supabase
         .from('business_members')
         .select(`
@@ -160,7 +157,7 @@ export default function DashboardPage() {
         <div className="container max-w-6xl mx-auto px-4 py-4">
           <div className="flex items-center justify-between gap-2"> 
             
-            {/* LADO ESQUERDO: LOGO E NOME */}
+            {/* LADO ESQUERDO */}
             <div className="flex items-center gap-3 md:gap-4 min-w-0 flex-1"> 
               <div className="w-10 h-10 rounded-xl bg-primary flex items-center justify-center shadow-[0_0_15px_rgba(246,173,85,0.2)] shrink-0">
                 <Sparkles className="w-5 h-5 text-gray-900" />
@@ -180,9 +177,8 @@ export default function DashboardPage() {
               </div>
             </div>
 
-            {/* LADO DIREITO: AÇÕES */}
+            {/* LADO DIREITO */}
             <div className="flex items-center gap-1 md:gap-3 shrink-0">
-              
               <Button 
                 onClick={handleOpenTutorial}
                 variant="ghost" 
@@ -253,7 +249,6 @@ export default function DashboardPage() {
       </div>
 
       <main className="container max-w-6xl mx-auto px-4 py-8 animate-fade-in print:p-0 print:max-w-none overflow-x-hidden">
-        
         {activeTab === 'overview' && shouldShowPricing && (
            <div id="pricing-section" className="mb-12 animate-in slide-in-from-top-10">
              <div className="text-center mb-8">
@@ -267,7 +262,6 @@ export default function DashboardPage() {
                )}
              </div>
              
-             {/* CORREÇÃO AQUI: Adicionado 'pt-10' (padding-top) para dar espaço ao balão flutuante */}
              <div className="w-full overflow-x-auto pb-4">
                 <PricingTable />
              </div>
@@ -285,6 +279,7 @@ export default function DashboardPage() {
         </div>
       </main>
 
+      {/* MOBILE TABS */}
       <div className="md:hidden fixed bottom-4 left-4 right-4 bg-[#112240]/90 backdrop-blur-xl border border-white/10 rounded-2xl shadow-2xl z-50 pb-safe print:hidden">
         <div className="flex justify-around items-center px-2 py-3">
           {tabs.map((tab) => {
@@ -305,7 +300,6 @@ export default function DashboardPage() {
       </div>
 
       <OnboardingModal />
-
     </div>
   );
 }

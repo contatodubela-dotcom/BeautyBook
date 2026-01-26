@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import { useMemo, useState, useRef } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { supabase } from '../../lib/supabase';
 import { useAuth } from '../../hooks/useAuth';
@@ -11,6 +11,8 @@ import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContaine
 import { format, startOfMonth, endOfMonth, eachDayOfInterval, subMonths, startOfDay, endOfDay, parseISO } from 'date-fns';
 import { ptBR, enUS } from 'date-fns/locale';
 import { useTranslation } from 'react-i18next';
+import { useReactToPrint } from 'react-to-print';
+import { FinancialReport } from './FinancialReport'; // Importando o relatório de impressão
 
 export default function ReportsView() {
   const { t, i18n } = useTranslation();
@@ -20,6 +22,15 @@ export default function ReportsView() {
   const [selectedMonth, setSelectedMonth] = useState('0');
   const [customStart, setCustomStart] = useState(format(new Date(), 'yyyy-MM-dd'));
   const [customEnd, setCustomEnd] = useState(format(new Date(), 'yyyy-MM-dd'));
+
+  // Ref para impressão
+  const componentRef = useRef<HTMLDivElement>(null);
+
+  // Hook de impressão
+  const handlePrint = useReactToPrint({
+    contentRef: componentRef,
+    documentTitle: `Relatorio_Financeiro_${format(new Date(), 'yyyy-MM')}`,
+  });
 
   // --- LÓGICA DE DATAS SIMPLIFICADA E ROBUSTA ---
   const dateRange = useMemo(() => {
@@ -63,13 +74,15 @@ export default function ReportsView() {
     queryFn: async () => {
       const { data: member } = await supabase.from('business_members').select('business_id').eq('user_id', user?.id).single();
       const bid = member?.business_id;
-      if (!bid) return { dailyRevenue: [], totalRevenue: 0, appointmentsCount: 0, topServices: [], ticket: 0, revenue: 0, count: 0, chartData: [] };
+      if (!bid) return { dailyRevenue: [], totalRevenue: 0, appointmentsCount: 0, topServices: [], ticket: 0, revenue: 0, count: 0, chartData: [], appointmentsList: [] };
 
+      // ATUALIZAÇÃO: Buscando também o nome do cliente (profiles)
       const { data: apps, error } = await supabase
         .from('appointments')
         .select(`
             id, appointment_date, status,
-            services ( name, price )
+            services ( name, price ),
+            profiles:client_id ( name )
         `)
         .eq('business_id', bid)
         .gte('appointment_date', dateRange.start.toISOString())
@@ -83,19 +96,25 @@ export default function ReportsView() {
       let total = 0;
       const servicesMap = new Map();
 
+      // Lista formatada para o Relatório de Impressão
+      const appointmentsList = apps?.map((app: any) => ({
+        start_time: app.appointment_date,
+        client_name: app.profiles?.name || t('common.client', { defaultValue: 'Cliente' }), // Tenta pegar o nome ou usa padrão
+        service_name: app.services?.name || '-',
+        price: app.services?.price || 0
+      })) || [];
+
       // Preenche dias vazios para o gráfico não ficar buracado
       const interval = eachDayOfInterval({ start: dateRange.start, end: dateRange.end });
       interval.forEach(d => dailyMap.set(format(d, 'yyyy-MM-dd'), 0));
 
       apps?.forEach((app: any) => {
-          // Ajuste seguro de fuso horário pegando apenas a parte da data
           const dayKey = app.appointment_date.split('T')[0];
           const price = app.services?.price || 0;
           
           if (dailyMap.has(dayKey)) {
               dailyMap.set(dayKey, dailyMap.get(dayKey) + price);
           } else {
-              // Caso o fuso horário gere uma data fora do intervalo inicial
               dailyMap.set(dayKey, (dailyMap.get(dayKey) || 0) + price);
           }
           
@@ -107,7 +126,7 @@ export default function ReportsView() {
       });
 
       const dailyRevenue = Array.from(dailyMap.entries())
-          .sort((a, b) => a[0].localeCompare(b[0])) // Ordena por data
+          .sort((a, b) => a[0].localeCompare(b[0]))
           .map(([date, value]) => ({
               name: format(parseISO(date), 'dd/MM'),
               fullDate: format(parseISO(date), 'dd/MM/yyyy'),
@@ -118,7 +137,6 @@ export default function ReportsView() {
         .map(([name, count]) => ({ 
             name, 
             count,
-            // Calcula valor total aproximado deste serviço (opcional)
             value: apps?.filter((a: any) => a.services?.name === name).reduce((acc: number, curr: any) => acc + (curr.services?.price || 0), 0) || 0
         }))
         .sort((a, b) => b.count - a.count)
@@ -129,10 +147,11 @@ export default function ReportsView() {
           revenue: total, 
           count: apps?.length || 0, 
           ticket: apps?.length ? total / apps.length : 0,
-          topServices 
+          topServices,
+          appointmentsList // Retorna a lista pronta para impressão
       };
     },
-    enabled: !!user?.id && (plan === 'pro' || plan === 'business') // Só busca se for pago
+    enabled: !!user?.id && (plan === 'pro' || plan === 'business') 
   });
 
   const currencyFormatter = new Intl.NumberFormat(i18n.language === 'pt' ? 'pt-BR' : 'en-US', {
@@ -168,7 +187,6 @@ export default function ReportsView() {
 
                   <Button 
                     className="w-full bg-amber-500 hover:bg-amber-600 text-slate-900 font-bold h-12 text-lg"
-                    // CORREÇÃO: Redireciona via hash para o DashboardPage capturar e rolar
                     onClick={() => window.location.hash = '#pricing'} 
                   >
                       {t('dashboard.banner.cta', { defaultValue: 'Ver Planos' })}
@@ -225,7 +243,8 @@ export default function ReportsView() {
                         </SelectContent>
                     </Select>
                     
-                    <Button variant="outline" className="gap-2 text-slate-300 border-slate-600 hover:text-white hover:bg-slate-700" onClick={() => window.print()}>
+                    {/* Botão de Impressão Atualizado */}
+                    <Button variant="outline" className="gap-2 text-slate-300 border-slate-600 hover:text-white hover:bg-slate-700" onClick={handlePrint}>
                         <Printer className="w-4 h-4" /> 
                     </Button>
                 </div>
@@ -317,6 +336,16 @@ export default function ReportsView() {
                 )}
               </div>
            </div>
+        </div>
+
+        {/* --- COMPONENTE DE IMPRESSÃO INVISÍVEL --- */}
+        <div style={{ display: "none" }}>
+            <FinancialReport 
+                ref={componentRef} 
+                data={stats?.appointmentsList || []} 
+                totalRevenue={stats?.revenue || 0} 
+                period={dateRange.display}
+            />
         </div>
     </div>
   );

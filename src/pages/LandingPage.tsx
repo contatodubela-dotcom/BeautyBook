@@ -4,7 +4,7 @@ import {
   Menu, X, Star, AlertCircle, Smartphone,
   Briefcase, Brain, Scissors, Dumbbell,
   TrendingUp, Bell, Share2, MousePointerClick,
-  XCircle // <--- ADICIONADO AQUI
+  XCircle 
 } from 'lucide-react';
 import { useState } from 'react';
 import { motion } from 'framer-motion';
@@ -568,20 +568,26 @@ export default function LandingPage() {
           </div>
 
           <div className="flex gap-6">
-  {/* Link para Termos */}
-  <Link to="/terms" className="text-gray-500 hover:text-white transition-colors text-sm">
-    {t('landing.footer.terms')}
-  </Link>
-  
-  {/* Link para Privacidade */}
-  <Link to="/privacy" className="text-gray-500 hover:text-white transition-colors text-sm">
-    {t('landing.footer.privacy')}
-  </Link>
-  
-  <a href="#" className="text-gray-500 hover:text-white transition-colors text-sm">
-    {t('landing.footer.instagram')}
-  </a>
-</div>
+            {/* Link para Termos */}
+            <Link to="/terms" className="text-gray-500 hover:text-white transition-colors text-sm">
+              {t('landing.footer.terms')}
+            </Link>
+            
+            {/* Link para Privacidade */}
+            <Link to="/privacy" className="text-gray-500 hover:text-white transition-colors text-sm">
+              {t('landing.footer.privacy')}
+            </Link>
+            
+            {/* Link para Instagram */}
+            <a 
+              href="https://www.instagram.com/cleverya.app" 
+              target="_blank" 
+              rel="noopener noreferrer" 
+              className="text-gray-500 hover:text-white transition-colors text-sm"
+            >
+              {t('landing.footer.instagram')}
+            </a>
+          </div>
         </div>
       </footer>
     </div>
