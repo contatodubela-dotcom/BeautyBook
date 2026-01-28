@@ -139,7 +139,7 @@ function BookingContent({ business }: { business: BusinessInfo }) {
 
   // Define os dados visuais
   const businessName = business.name || t('booking.default_business_name', { defaultValue: 'Agendamento Online' });
-  const bannerUrl = business.banner_url || 'https://bxglxltapbagjmmkagfm.supabase.co/storage/v1/object/public/salon-images/Cleverya.png';
+  const bannerUrl = business.banner_url || 'https://bxglxltapbagjmmkagfm.supabase.co/storage/v1/object/public/salon-images/Cleverya.link.webp';
 
   // --- 1. VERIFICAÇÃO DE PLANO E LIMITES ---
   const { data: usageMetrics } = useQuery({
